@@ -1,15 +1,25 @@
 import BadgeSvg from '@/assets/images/badge.svg';
 import ChatIconHomepageSvg from '@/assets/images/chat-icon-homepage.svg';
 import HeartIconSvg from '@/assets/images/heart-icon.svg';
+import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import HomeHeader from '@/components/home-header';
 import HomeNavigationBar from '@/components/home-navigation-bar';
-import React, { useState } from 'react';
-import { ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Animated, Easing, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HomePage() {
   const [liked, setLiked] = useState(false);
+  const [hearted, setHearted] = useState(false);
+  const heartScale = useRef(new Animated.Value(1)).current;
+
+  const handleHeartPress = () => {
+    Animated.sequence([
+      Animated.timing(heartScale, { toValue: 1.2, duration: 150, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(heartScale, { toValue: 1, duration: 180, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+    ]).start(() => setHearted(h => !h));
+  };
 
   return (
     <View style={styles.container}>
@@ -20,8 +30,10 @@ export default function HomePage() {
           style={styles.image}
           imageStyle={styles.imageStyle}
           resizeMode="cover">
-          <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8}>
-            <HeartIconSvg width={52} height={52} />
+          <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8} onPress={handleHeartPress}>
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              {hearted ? <HeartTrueIconSvg width={56} height={56} /> : <HeartIconSvg width={56} height={56} />}
+            </Animated.View>
           </TouchableOpacity>
           <View style={styles.overlay}>
             <View style={styles.timeBadge}>
@@ -35,12 +47,12 @@ export default function HomePage() {
             <Text style={styles.subText}>Branding Consultant</Text>
             <View style={styles.actionRow}>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
-                {liked ? <LikedIconSvg width={48} height={48} /> : <NonLikedIconSvg width={48} height={48} />}
+                {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
               </TouchableOpacity>
               <Text style={styles.likeCount}>76</Text>
-              <View style={styles.chatIconBox}>
-                <ChatIconHomepageSvg width={34} height={34} />
-              </View>
+              <TouchableOpacity activeOpacity={0.8}>
+                <ChatIconHomepageSvg width={52} height={52} />
+              </TouchableOpacity>
             </View>
           </View>
         </ImageBackground>
@@ -75,7 +87,7 @@ const styles = StyleSheet.create({
     right: 16,
   },
   overlay: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingBottom: 18,
     paddingTop: 10,
   },
@@ -122,13 +134,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     marginLeft: 10,
-    marginRight: 20,
-  },
-  chatIconBox: {
-    backgroundColor: ORANGE,
-    borderRadius: 18,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginLeft: 'auto',
+    marginRight: 16,
   },
 });
