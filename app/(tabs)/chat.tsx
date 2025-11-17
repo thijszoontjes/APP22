@@ -1,6 +1,8 @@
 import HomeNavigationBar from '@/components/home-navigation-bar';
+import { Link } from 'expo-router';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 const ORANGE = '#FF8700';
 
@@ -29,6 +31,8 @@ const CHATS = [
 ];
 
 export default function ChatPage() {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
@@ -41,24 +45,49 @@ export default function ChatPage() {
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {CHATS.map(chat => (
             <View key={chat.id}>
-              <View style={styles.chatRow}>
-                <View style={styles.avatarRing}>
-                  {chat.avatar ? (
-                    <Image source={chat.avatar} style={styles.avatarImage} />
-                  ) : (
-                    <View style={styles.avatarFallback}>
-                      <Text style={styles.avatarInitials}>{chat.initials}</Text>
+              {chat.id === '1' ? (
+                <Link href="/chat" asChild>
+                  <TouchableOpacity activeOpacity={0.85} style={styles.chatPressable}>
+                    <View style={styles.chatRow}>
+                      <View style={styles.avatarRing}>
+                        {chat.avatar ? (
+                          <Image source={chat.avatar} style={styles.avatarImage} />
+                        ) : (
+                          <View style={styles.avatarFallback}>
+                            <Text style={styles.avatarInitials}>{chat.initials}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.textBlock}>
+                        <Text style={styles.name}>{chat.name}</Text>
+                        <Text style={styles.message} numberOfLines={1}>
+                          {chat.message}
+                        </Text>
+                      </View>
+                      <Text style={styles.time}>{chat.time}</Text>
                     </View>
-                  )}
+                  </TouchableOpacity>
+                </Link>
+              ) : (
+                <View style={styles.chatRow}>
+                  <View style={styles.avatarRing}>
+                    {chat.avatar ? (
+                      <Image source={chat.avatar} style={styles.avatarImage} />
+                    ) : (
+                      <View style={styles.avatarFallback}>
+                        <Text style={styles.avatarInitials}>{chat.initials}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.textBlock}>
+                    <Text style={styles.name}>{chat.name}</Text>
+                    <Text style={styles.message} numberOfLines={1}>
+                      {chat.message}
+                    </Text>
+                  </View>
+                  <Text style={styles.time}>{chat.time}</Text>
                 </View>
-                <View style={styles.textBlock}>
-                  <Text style={styles.name}>{chat.name}</Text>
-                  <Text style={styles.message} numberOfLines={1}>
-                    {chat.message}
-                  </Text>
-                </View>
-                <Text style={styles.time}>{chat.time}</Text>
-              </View>
+              )}
               <View style={styles.divider} />
             </View>
           ))}
@@ -114,6 +143,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     gap: 12,
+  },
+  chatPressable: {
+    flex: 1,
   },
   avatarRing: {
     width: 62,

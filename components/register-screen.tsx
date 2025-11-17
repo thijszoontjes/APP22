@@ -79,9 +79,11 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.submitButton}>
-            <Text style={styles.submitText}>Registreer</Text>
-          </TouchableOpacity>
+          <Link href="/login" asChild>
+            <TouchableOpacity style={styles.submitButton}>
+              <Text style={styles.submitText}>Registreer</Text>
+            </TouchableOpacity>
+          </Link>
 
           <Link href="/login" asChild>
             <TouchableOpacity>
