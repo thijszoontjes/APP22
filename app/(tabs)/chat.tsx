@@ -2,10 +2,9 @@ import HomeNavigationBar from '@/components/home-navigation-bar';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-export default function HomePage() {
+export default function ChatPage() {
   return (
     <View style={styles.container}>
-      {/* Content kan hier komen */}
       <HomeNavigationBar />
     </View>
   );

@@ -41,9 +41,11 @@ export default function LoginScreen() {
         <TouchableOpacity>
           <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.loginBtn}>
-          <Text style={styles.loginBtnText}>Inloggen</Text>
-        </TouchableOpacity>
+        <Link href="/(tabs)" asChild>
+          <TouchableOpacity style={styles.loginBtn}>
+            <Text style={styles.loginBtnText}>Inloggen</Text>
+          </TouchableOpacity>
+        </Link>
         <View style={styles.registerRow}>
           <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
           <Link href="/register" asChild>
