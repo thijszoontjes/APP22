@@ -1,19 +1,18 @@
-import React from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Link } from 'expo-router';
+import React, { useState } from 'react';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <View style={styles.container}>
       <View style={styles.topSection}>
         <Image
-          source={{ uri: 'https://via.placeholder.com/860x658.png?text=Login+Background' }}
+          source={require('@/assets/images/login-header.png')}
           style={styles.bgImage}
           resizeMode="cover"
         />
-        <View style={styles.overlay} />
-        <View style={styles.iconBubble}>
-          <Text style={styles.iconText}>22</Text>
-        </View>
       </View>
       <View style={styles.formSection}>
         <Text style={styles.title}>Inloggen</Text>
@@ -29,11 +28,15 @@ export default function LoginScreen() {
             style={styles.input}
             placeholder="Wachtwoord"
             placeholderTextColor="#888"
-            secureTextEntry={true}
+            secureTextEntry={!showPassword}
           />
-          <Pressable style={styles.eyeIcon}>
-            <Image source={{ uri: 'https://via.placeholder.com/22x22.png?text=👁️' }} style={styles.eyeImg} />
-          </Pressable>
+          <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
+            <Image
+              source={require('@/assets/images/eye.png')}
+              style={styles.eyeImg}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity>
           <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
@@ -43,9 +46,11 @@ export default function LoginScreen() {
         </TouchableOpacity>
         <View style={styles.registerRow}>
           <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
-          <TouchableOpacity>
-            <Text style={styles.registerLink}>Registreer hier</Text>
-          </TouchableOpacity>
+          <Link href="/register" asChild>
+            <TouchableOpacity>
+              <Text style={styles.registerLink}>Registreer hier</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
       </View>
     </View>
@@ -58,46 +63,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   topSection: {
-    height: 260,
-    position: 'relative',
+    height: 220,
     justifyContent: 'center',
     alignItems: 'center',
   },
   bgImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
     width: '100%',
     height: '100%',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  iconBubble: {
-    position: 'absolute',
-    top: 90,
-    left: '50%',
-    marginLeft: -45,
-    width: 90,
-    height: 60,
-    backgroundColor: '#FF8700',
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 6,
-    borderColor: '#fff',
-    flexDirection: 'row',
-  },
-  iconText: {
-    color: '#fff',
-    fontSize: 36,
-    fontWeight: 'bold',
-    marginTop: 2,
   },
   formSection: {
     flex: 1,
@@ -134,7 +106,7 @@ const styles = StyleSheet.create({
   eyeImg: {
     width: 22,
     height: 22,
-    tintColor: '#bbb',
+    tintColor: '#b4b4b4',
   },
   forgot: {
     color: '#6080FF',
@@ -147,12 +119,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 44,
-    marginBottom: 32,
+    height: 38,
+    marginBottom: 24,
+    width: 160,
+    alignSelf: 'center',
   },
   loginBtnText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '500',
   },
   registerRow: {
