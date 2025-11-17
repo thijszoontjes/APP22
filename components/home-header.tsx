@@ -1,9 +1,12 @@
 import FilterIconSvg from '@/assets/images/filter-icon.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HomeHeader() {
+  const router = useRouter();
+
   return (
     <View style={styles.headerContainer}>
       <View style={styles.topRow}>
@@ -11,9 +14,9 @@ export default function HomeHeader() {
           <SearchIconSvg width={28} height={28} />
         </View>
         <Text style={styles.title}>Ontdek het netwerk</Text>
-        <View style={styles.iconCircle}>
+        <TouchableOpacity style={styles.iconCircle} activeOpacity={0.8} onPress={() => router.push('/filters')}>
           <FilterIconSvg width={28} height={28} />
-        </View>
+        </TouchableOpacity>
       </View>
       <View style={styles.orangeLine} />
     </View>
