@@ -1,10 +1,21 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
-import SendIconSvg from '@/assets/images/send-icon.svg';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const ORANGE = '#FF8700';
+const LIGHT_ORANGE = '#FCDCBE';
+const SOFT_GRAY = '#E7E7E7';
 
 type ChatMessage = {
   id: string;
@@ -15,85 +26,120 @@ type ChatMessage = {
 
 export default function DMChatPage() {
   const router = useRouter();
-  const { userName = 'Chat', userId } = useLocalSearchParams();
+  const navigation = useNavigation();
+  const { userName = 'Maarten Kuip' } = useLocalSearchParams();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
-  const dayLabel = useMemo(() => 'Vandaag', []);
+
+  const dayLabel = useMemo(() => {
+    const first = messages[0]?.createdAt;
+    return first ? getDayLabel(first) : '';
+  }, [messages]);
 
   useEffect(() => {
+    navigation.setOptions?.({ headerShown: false });
+    scrollToBottom(false);
+  }, [navigation]);
+
+  useEffect(() => {
+    scrollToBottom(true);
+  }, [messages.length]);
+
+  const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd({ animated: false });
+      scrollRef.current?.scrollToEnd({ animated });
     });
-  }, []);
+  };
 
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+    const now = new Date();
     const msg: ChatMessage = {
       id: `${Date.now()}`,
       text: trimmed,
       from: 'me',
-      createdAt: new Date(),
+      createdAt: now,
     };
-    setMessages(prev => [...prev, msg]);
+    setMessages((prev) => [...prev, msg]);
     setInput('');
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
+    scrollToBottom(true);
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.backWrap}>
-            <ArrowBackSvg width={24} height={24} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{userName}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-        <View style={styles.headerLine} />
-      </View>
-
-      <ScrollView ref={scrollRef} style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
-        {messages.length > 0 && (
-          <View style={styles.dayChip}>
-            <Text style={styles.dayChipText}>{dayLabel}</Text>
-          </View>
-        )}
-        {messages.map(msg => (
-          <View key={msg.id} style={[styles.bubbleRow, msg.from === 'me' ? styles.alignEnd : styles.alignStart]}>
-            <View style={[styles.bubbleWrap, msg.from === 'me' ? styles.alignEnd : styles.alignStart]}>
-              {msg.from === 'them' && <View style={styles.themTail} />}
-              <View style={[styles.bubble, msg.from === 'me' ? styles.meBubble : styles.themBubble]}>
-                <Text style={styles.bubbleText}>{msg.text}</Text>
-                <Text style={styles.time}>{formatTime(msg.createdAt)}</Text>
-              </View>
-              {msg.from === 'me' && <View style={styles.meTail} />}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View style={styles.inputBar}>
-        <View style={styles.plusCircle}>
-          <Text style={styles.plusText}>+</Text>
-        </View>
-        <TextInput
-          style={styles.textInput}
-          value={input}
-          onChangeText={setInput}
-          placeholder="Bericht...."
-          placeholderTextColor="#A0A0A0"
-          multiline
-        />
-        <TouchableOpacity activeOpacity={0.85} onPress={handleSend} style={styles.sendButton}>
-          <SendIconSvg width={18} height={18} />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
+          <ArrowBackSvg width={24} height={24} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {userName}
+        </Text>
       </View>
-    </KeyboardAvoidingView>
+      <View style={styles.headerLine} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          alwaysBounceVertical={false}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {dayLabel ? (
+            <View style={styles.dayChip}>
+              <Text style={styles.dayChipText}>{dayLabel}</Text>
+            </View>
+          ) : null}
+          {messages.map((message) => {
+            const isMe = message.from === 'me';
+            return (
+              <View key={message.id} style={isMe ? styles.bubbleRowRight : styles.bubbleRowLeft}>
+                <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                  <Text style={isMe ? styles.bubbleTextRight : styles.bubbleTextLeft}>{message.text}</Text>
+                  <Text style={isMe ? styles.bubbleTimeRight : styles.bubbleTimeLeft}>{formatTime(message.createdAt)}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+        <View style={styles.inputBar}>
+          <View style={styles.inputContainer}>
+            <View style={styles.plusCircle}>
+              <Text style={styles.plusIcon}>{'+'}</Text>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Bericht...."
+              placeholderTextColor="#B4B4B4"
+              multiline
+            />
+            <TouchableOpacity activeOpacity={0.85} style={styles.sendButton} onPress={handleSend}>
+              <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
+}
+
+function getDayLabel(date: Date) {
+  const now = new Date();
+  const today = isSameDay(now, date);
+  if (today) return 'Vandaag';
+  return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 function formatTime(date: Date) {
@@ -106,148 +152,167 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    paddingTop: 44,
-    paddingBottom: 0,
-    backgroundColor: '#fff',
-  },
-  headerRow: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    backgroundColor: '#fff',
   },
-  backWrap: {
-    padding: 4,
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2233',
-  },
-  headerSpacer: {
-    width: 24,
+    color: '#202020',
+    fontWeight: '600',
+    marginRight: 44,
   },
   headerLine: {
-    marginTop: 10,
-    height: 4,
+    height: 2,
     backgroundColor: ORANGE,
-    width: '100%',
   },
   list: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   listContent: {
     paddingBottom: 12,
+    paddingTop: 12,
   },
   dayChip: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 135, 0, 0.08)',
+    alignSelf: 'flex-start',
+    backgroundColor: LIGHT_ORANGE,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
-    marginBottom: 8,
+    marginBottom: 10,
+    marginLeft: 16,
   },
   dayChipText: {
-    color: ORANGE,
-    fontWeight: '600',
-    fontSize: 12,
+    color: '#C17B2C',
+    fontWeight: '500',
+    fontSize: 13,
+    textAlign: 'center',
   },
-  bubbleRow: {
+  bubbleRowRight: {
     flexDirection: 'row',
-    marginBottom: 8,
-  },
-  alignEnd: {
     justifyContent: 'flex-end',
+    marginBottom: 12,
+    paddingHorizontal: 16,
   },
-  alignStart: {
-    justifyContent: 'flex-start',
-  },
-  bubbleWrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  bubble: {
-    maxWidth: '70%',
-    padding: 12,
-    borderRadius: 16,
-    marginHorizontal: 4,
-  },
-  meBubble: {
-    backgroundColor: ORANGE,
+  bubbleRight: {
+    maxWidth: '78%',
+    backgroundColor: LIGHT_ORANGE,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignSelf: 'flex-end',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
-  themBubble: {
-    backgroundColor: '#F5F5F5',
-    alignSelf: 'flex-start',
-  },
-  bubbleText: {
+  bubbleTextRight: {
     fontSize: 15,
     color: '#1A2233',
+    fontWeight: '400',
+    marginBottom: 4,
   },
-  time: {
+  bubbleTimeRight: {
     fontSize: 12,
-    color: '#A0A0A0',
-    marginTop: 4,
+    color: '#00000080',
     alignSelf: 'flex-end',
   },
-  meTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 10,
-    borderLeftColor: ORANGE,
-    borderTopWidth: 10,
-    borderTopColor: 'transparent',
-    marginLeft: -2,
-    marginBottom: -2,
+  bubbleRowLeft: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 12,
+    paddingHorizontal: 16,
   },
-  themTail: {
-    width: 0,
-    height: 0,
-    borderRightWidth: 10,
-    borderRightColor: '#F5F5F5',
-    borderTopWidth: 10,
-    borderTopColor: 'transparent',
-    marginRight: -2,
-    marginBottom: -2,
+  bubbleLeft: {
+    maxWidth: '78%',
+    backgroundColor: SOFT_GRAY,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  bubbleTextLeft: {
+    fontSize: 15,
+    color: '#1A2233',
+    fontWeight: '400',
+    marginBottom: 4,
+  },
+  bubbleTimeLeft: {
+    fontSize: 12,
+    color: '#00000080',
+    alignSelf: 'flex-end',
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: '#E9E9E9',
     backgroundColor: '#fff',
   },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D7D7D7',
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   plusCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#B4B4B4',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
   },
-  plusText: {
+  plusIcon: {
     fontSize: 20,
-    color: ORANGE,
-    fontWeight: '700',
+    color: '#B4B4B4',
+    marginTop: -1,
   },
   textInput: {
     flex: 1,
     fontSize: 15,
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#fff',
+    borderRadius: 18,
     color: '#1A2233',
+    marginHorizontal: 6,
   },
   sendButton: {
-    padding: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: ORANGE,
-    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    marginLeft: 6,
+  },
+  sendIconLarge: {
+    width: 26,
+    height: 26,
+    resizeMode: 'contain',
   },
 });
