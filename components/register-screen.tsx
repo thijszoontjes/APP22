@@ -99,16 +99,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   hero: {
-    height: 260,
+    height: '40%',
     position: 'relative',
     overflow: 'hidden',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   heroImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
     width: '100%',
     height: '100%',
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   heroOverlay: {
     position: 'absolute',

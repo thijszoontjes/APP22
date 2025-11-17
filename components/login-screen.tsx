@@ -63,13 +63,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   topSection: {
-    height: 220,
-    justifyContent: 'center',
+    height: '40%',
+    justifyContent: 'flex-end',
     alignItems: 'center',
+    marginBottom: 0,
   },
   bgImage: {
     width: '100%',
     height: '100%',
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   formSection: {
     flex: 1,
