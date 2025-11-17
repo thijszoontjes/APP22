@@ -1,61 +1,66 @@
 import { Link } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topSection}>
-        <Image
-          source={require('@/assets/images/login-header.png')}
-          style={styles.bgImage}
-          resizeMode="cover"
-        />
-      </View>
-      <View style={styles.formSection}>
-        <Text style={styles.title}>Inloggen</Text>
-        <View style={styles.inputBox}>
-          <TextInput
-            style={styles.input}
-            placeholder="E-mail"
-            placeholderTextColor="#888"
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.topSection}>
+          <Image
+            source={require('@/assets/images/login-header.png')}
+            style={styles.bgImage}
+            resizeMode="cover"
           />
         </View>
-        <View style={styles.inputBox}>
-          <TextInput
-            style={styles.input}
-            placeholder="Wachtwoord"
-            placeholderTextColor="#888"
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
-            <Image
-              source={require('@/assets/images/eye.png')}
-              style={styles.eyeImg}
-              resizeMode="contain"
+        <View style={styles.formSection}>
+          <Text style={styles.title}>Inloggen</Text>
+          <Text style={styles.label}>E-mail</Text>
+          <View style={styles.inputBox}>
+            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+          </View>
+          <Text style={styles.label}>Wachtwoord</Text>
+          <View style={styles.inputBox}>
+            <TextInput
+              style={styles.input}
+              secureTextEntry={!showPassword}
             />
+            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity>
+            <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
           </TouchableOpacity>
-        </View>
-        <TouchableOpacity>
-          <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
-        </TouchableOpacity>
-        <Link href="/(tabs)" asChild>
-          <TouchableOpacity style={styles.loginBtn}>
-            <Text style={styles.loginBtnText}>Inloggen</Text>
-          </TouchableOpacity>
-        </Link>
-        <View style={styles.registerRow}>
-          <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
-          <Link href="/register" asChild>
-            <TouchableOpacity>
-              <Text style={styles.registerLink}>Registreer hier</Text>
+          <Link href="/(tabs)" asChild>
+            <TouchableOpacity style={styles.loginBtn}>
+              <Text style={styles.loginBtnText}>Inloggen</Text>
             </TouchableOpacity>
           </Link>
+          <View style={styles.registerRow}>
+            <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
+            <Link href="/register" asChild>
+              <TouchableOpacity>
+                <Text style={styles.registerLink}>Registreer hier</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -63,6 +68,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 220, // extra space so inputs/buttons clear the keyboard
   },
   topSection: {
     height: '40%',
@@ -87,6 +99,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     color: '#000',
+  },
+  label: {
+    fontSize: 14,
+    color: '#1A2233',
+    marginBottom: 6,
+    marginLeft: 4,
   },
   inputBox: {
     flexDirection: 'row',
