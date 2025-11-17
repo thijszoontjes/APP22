@@ -30,17 +30,20 @@ export default function FiltersPage() {
   }, [sliderValue]);
 
   const trackWidth = trackWidthRef.current || 1;
-  const thumbTranslate = ratio * trackWidth - 12;
+  const thumbTranslate = Math.min(Math.max(ratio * trackWidth - 12, -12), trackWidth - 12);
 
   const handleTrackLayout = (e: LayoutChangeEvent) => {
     trackWidthRef.current = e.nativeEvent.layout.width;
   };
 
   const updateValueFromX = (x: number) => {
-    const width = trackWidthRef.current || 1;
+    const width = Math.max(trackWidthRef.current, 1);
     const clampedX = Math.max(0, Math.min(width, x));
     const newValue = SLIDER_MIN + (clampedX / width) * (SLIDER_MAX - SLIDER_MIN);
-    setSliderValue(Math.round(newValue));
+    setSliderValue(prev => {
+      const next = Math.round(newValue);
+      return next === prev ? prev : next;
+    });
   };
 
   const handleResponder = (e: { nativeEvent: NativeTouchEvent }) => {
@@ -71,6 +74,8 @@ export default function FiltersPage() {
             style={styles.sliderTrack}
             onLayout={handleTrackLayout}
             onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
+            onResponderTerminationRequest={() => false}
             onResponderGrant={handleResponder}
             onResponderMove={handleResponder}>
             <View style={[styles.sliderProgress, { width: `${ratio * 100}%` }]} />
