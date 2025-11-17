@@ -41,16 +41,18 @@ export default function HomePage() {
             </View>
             <View style={styles.nameRow}>
               <Text style={styles.name}>Johan Smith</Text>
-              <BadgeSvg width={18} height={18} style={styles.badgeIcon} />
+              <BadgeSvg width={22} height={22} style={styles.badgeIcon} />
             </View>
             <Text style={styles.subText}>Strategist, Leiden</Text>
             <Text style={styles.subText}>Branding Consultant</Text>
-            <View style={styles.actionRow}>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
-                {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
-              </TouchableOpacity>
-              <Text style={styles.likeCount}>76</Text>
-              <TouchableOpacity activeOpacity={0.8}>
+            <View style={styles.actionColumn}>
+              <View style={styles.likeRow}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
+                  {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
+                </TouchableOpacity>
+                <Text style={styles.likeCount}>76</Text>
+              </View>
+              <TouchableOpacity style={styles.chatButton} activeOpacity={0.8}>
                 <ChatIconHomepageSvg width={52} height={52} />
               </TouchableOpacity>
             </View>
@@ -88,8 +90,8 @@ const styles = StyleSheet.create({
   },
   overlay: {
     paddingHorizontal: 16,
-    paddingBottom: 18,
-    paddingTop: 10,
+    paddingBottom: 8,
+    paddingTop: 8,
   },
   timeBadge: {
     backgroundColor: ORANGE,
@@ -111,7 +113,7 @@ const styles = StyleSheet.create({
   },
   name: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 27,
     fontWeight: '700',
   },
   badgeIcon: {
@@ -119,21 +121,26 @@ const styles = StyleSheet.create({
   },
   subText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
     marginBottom: 3,
   },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  actionColumn: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
     marginTop: 14,
-    alignSelf: 'flex-end',
+  },
+  likeRow: {
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   likeCount: {
     color: '#fff',
     fontSize: 17,
     fontWeight: '600',
-    marginLeft: 10,
-    marginRight: 16,
+    marginTop: 4,
+  },
+  chatButton: {
+    marginTop: 10,
   },
 });
