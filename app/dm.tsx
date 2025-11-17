@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ORANGE = '#FF8700';
 const LIGHT_ORANGE = '#FCDCBE';
@@ -69,15 +70,17 @@ export default function DMChatPage() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
-          <ArrowBackSvg width={24} height={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {userName}
-        </Text>
-      </View>
-      <View style={styles.headerLine} />
+      <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
+            <ArrowBackSvg width={24} height={24} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {userName}
+          </Text>
+        </View>
+        <View style={styles.headerLine} />
+      </SafeAreaView>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -151,6 +154,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  headerSafeArea: {
+    backgroundColor: '#fff',
+  },
   header: {
     height: 56,
     flexDirection: 'row',
@@ -184,7 +190,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   dayChip: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     backgroundColor: LIGHT_ORANGE,
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -193,7 +199,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   dayChipText: {
-    color: '#C17B2C',
+    color: '#000',
     fontWeight: '500',
     fontSize: 13,
     textAlign: 'center',
@@ -264,6 +270,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E9E9E9',
     backgroundColor: '#fff',
+    paddingBottom: 18,
+    marginBottom: 4,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -288,7 +296,7 @@ const styles = StyleSheet.create({
   plusIcon: {
     fontSize: 20,
     color: '#B4B4B4',
-    marginTop: -1,
+    marginTop: 0,
   },
   textInput: {
     flex: 1,
