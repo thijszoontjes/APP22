@@ -1,6 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SendIconSvg from '@/assets/images/send-icon.svg';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -13,15 +13,13 @@ type ChatMessage = {
   createdAt: Date;
 };
 
-export default function ChatDetail() {
+export default function DMChatPage() {
   const router = useRouter();
+  const { userName = 'Chat', userId } = useLocalSearchParams();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const dayLabel = useMemo(() => 'Vandaag', []);
-
-  // Get userName from navigation params
-  const userName = router?.params?.userName || 'Chat';
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -121,21 +119,18 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backWrap: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    padding: 4,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#1A2233',
   },
   headerSpacer: {
-    width: 36,
-    height: 36,
+    width: 24,
   },
   headerLine: {
+    marginTop: 10,
     height: 4,
     backgroundColor: ORANGE,
     width: '100%',
@@ -144,26 +139,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 120,
-    gap: 8,
+    paddingBottom: 12,
   },
   dayChip: {
     alignSelf: 'center',
-    backgroundColor: '#f5b56b',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 135, 0, 0.08)',
     borderRadius: 12,
-    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
   },
   dayChipText: {
-    color: '#1A2233',
-    fontSize: 13,
+    color: ORANGE,
     fontWeight: '600',
+    fontSize: 12,
   },
   bubbleRow: {
     flexDirection: 'row',
+    marginBottom: 8,
   },
   alignEnd: {
     justifyContent: 'flex-end',
@@ -172,98 +165,89 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   bubbleWrap: {
-    maxWidth: '78%',
     flexDirection: 'row',
     alignItems: 'flex-end',
-    position: 'relative',
   },
   bubble: {
-    flexShrink: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    maxWidth: '70%',
+    padding: 12,
+    borderRadius: 16,
+    marginHorizontal: 4,
   },
   meBubble: {
-    backgroundColor: '#f7c690',
-    borderTopRightRadius: 6,
+    backgroundColor: ORANGE,
+    alignSelf: 'flex-end',
   },
   themBubble: {
-    backgroundColor: '#e2e2e2',
-    borderTopLeftRadius: 6,
-  },
-  meTail: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#f7c690',
-    transform: [{ rotate: '45deg' }],
-    marginLeft: 4,
-    marginBottom: 10,
-    borderBottomLeftRadius: 12,
-  },
-  themTail: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#e2e2e2',
-    transform: [{ rotate: '45deg' }],
-    marginRight: 4,
-    marginBottom: 10,
-    borderBottomRightRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignSelf: 'flex-start',
   },
   bubbleText: {
     fontSize: 15,
     color: '#1A2233',
-    marginBottom: 6,
   },
   time: {
     fontSize: 12,
-    color: '#5d5d5d',
-    textAlign: 'right',
+    color: '#A0A0A0',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  meTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderLeftColor: ORANGE,
+    borderTopWidth: 10,
+    borderTopColor: 'transparent',
+    marginLeft: -2,
+    marginBottom: -2,
+  },
+  themTail: {
+    width: 0,
+    height: 0,
+    borderRightWidth: 10,
+    borderRightColor: '#F5F5F5',
+    borderTopWidth: 10,
+    borderTopColor: 'transparent',
+    marginRight: -2,
+    marginBottom: -2,
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 12,
-    marginBottom: Platform.OS === 'ios' ? 12 : 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#cfcfcf',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F5F5',
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-    gap: 8,
   },
   plusCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: '#cfcfcf',
-    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   plusText: {
-    color: '#a0a0a0',
-    fontSize: 18,
-    fontWeight: '300',
-    marginTop: -1,
+    fontSize: 20,
+    color: ORANGE,
+    fontWeight: '700',
   },
   textInput: {
     flex: 1,
     fontSize: 15,
-    color: '#000',
-    maxHeight: 96,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 16,
+    marginRight: 8,
+    color: '#1A2233',
   },
   sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    padding: 8,
     backgroundColor: ORANGE,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 16,
   },
 });
