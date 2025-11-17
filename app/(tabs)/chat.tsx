@@ -86,7 +86,8 @@ const styles = StyleSheet.create({
   },
   headerTitleWrapper: {
     width: '100%',
-    paddingVertical: 16,
+    paddingTop: 18,
+    paddingBottom: 6,
     alignItems: 'center',
   },
   headerTitle: {
