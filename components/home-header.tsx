@@ -1,13 +1,14 @@
 import FilterIconSvg from '@/assets/images/filter-icon.svg';
+import SearchIconSvg from '@/assets/images/search-icon.svg';
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function HomeHeader() {
   return (
     <View style={styles.headerContainer}>
       <View style={styles.topRow}>
         <View style={styles.iconCircle}>
-          <Image source={require('@/assets/images/search-icon.png')} style={styles.icon} />
+          <SearchIconSvg width={28} height={28} />
         </View>
         <Text style={styles.title}>Ontdek het netwerk</Text>
         <View style={styles.iconCircle}>
@@ -46,15 +47,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  icon: {
-    width: 28,
-    height: 28,
-    resizeMode: 'contain',
-  },
   title: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '500',
     color: '#1A2233',
     letterSpacing: 0.1,
