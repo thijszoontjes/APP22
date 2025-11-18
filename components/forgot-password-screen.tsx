@@ -1,28 +1,55 @@
+import { Link } from 'expo-router';
 import React from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const HEADER_IMAGE = { uri: 'http://localhost:3845/assets/42507f809574e5e7761bac96edc08df8a3e9cc02.png' };
+const ORANGE = '#FF8700';
 
 export default function WachtwoordVergetenScreen() {
   return (
-    <View style={styles.container}>
-      <Image source={require('@/assets/images/login-header.png')} style={styles.headerImage} resizeMode="cover" />
-      <Text style={styles.title}>Wachtwoord vergeten</Text>
-      <View style={styles.inputWrapper}>
-        <Text style={styles.inputLabel}>E-mail</Text>
-        <View style={styles.inputBox}>
-          <TextInput
-            style={styles.input}
-            value=""
-            placeholder=""
-            placeholderTextColor="#282828"
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <Image
+            source={require('@/assets/images/login-header.png')}
+            style={styles.heroImage}
+            resizeMode="cover"
           />
         </View>
-      </View>
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>Stuur mail</Text>
-      </TouchableOpacity>
-    </View>
+
+        <View style={styles.form}>
+          <Text style={styles.title}>Wachtwoord vergeten</Text>
+          <Text style={styles.subtitle}>
+            Vul je e-mailadres in en wij sturen je een resetlink.
+          </Text>
+
+          <Text style={styles.label}>E-mail</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <TouchableOpacity style={styles.ctaButton}>
+            <Text style={styles.ctaText}>Stuur mail</Text>
+          </TouchableOpacity>
+
+          <Link href="/login" asChild>
+            <TouchableOpacity>
+              <Text style={styles.backLink}>Terug naar inloggen</Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -30,74 +57,80 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 200,
+  },
+  hero: {
+    height: '40%',
+    justifyContent: 'flex-end',
     alignItems: 'center',
   },
-  headerImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+  heroImage: {
     width: '100%',
-    height: 260,
+    height: '100%',
+  },
+  form: {
+    paddingHorizontal: 28,
+    paddingTop: 24,
   },
   title: {
-    position: 'absolute',
-    top: 220,
-    left: 0,
-    width: '100%',
-    textAlign: 'center',
     fontSize: 30,
-    color: '#000',
-    fontFamily: 'Inter',
     fontWeight: '400',
+    textAlign: 'center',
+    color: '#000',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#1A2233',
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  label: {
+    fontSize: 14,
+    color: '#1A2233',
+    marginLeft: 4,
+    marginBottom: 6,
   },
   inputWrapper: {
-    position: 'absolute',
-    top: 290,
-    left: 0,
-    width: '100%',
-    alignItems: 'center',
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: '#282828',
-    fontFamily: 'Inter',
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-    marginLeft: 44,
-  },
-  inputBox: {
-    backgroundColor: '#fff',
-    borderColor: '#ff8700',
-    borderWidth: 1,
-    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: ORANGE,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     height: 48,
-    width: 342,
     justifyContent: 'center',
+    backgroundColor: '#fff',
+    marginBottom: 18,
   },
   input: {
-    paddingLeft: 20,
-    fontSize: 14,
-    color: '#282828',
-    fontFamily: 'Inter',
-    height: 48,
+    flex: 1,
+    fontSize: 16,
+    color: '#000',
   },
-  button: {
-    position: 'absolute',
-    top: 370,
-    left: '50%',
-    width: 113,
+  ctaButton: {
     height: 40,
-    backgroundColor: '#ff8700',
+    backgroundColor: ORANGE,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ translateX: -56.5 }],
+    marginTop: 8,
+    width: 170,
+    alignSelf: 'center',
   },
-  buttonText: {
-    fontFamily: 'Alexandria',
-    fontSize: 18,
+  ctaText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  backLink: {
+    marginTop: 18,
+    color: '#6080FF',
+    fontSize: 15,
     textAlign: 'center',
-    fontWeight: '400',
   },
 });
