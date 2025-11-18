@@ -36,15 +36,17 @@ export default function HomePage() {
             </Animated.View>
           </TouchableOpacity>
           <View style={styles.overlay}>
-            <View style={styles.timeBadge}>
-              <Text style={styles.timeBadgeText}>10 minuten geleden</Text>
+            <View style={{flex: 1}}>
+              <View style={styles.timeBadge}>
+                <Text style={styles.timeBadgeText}>10 minuten geleden</Text>
+              </View>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>Johan Smith</Text>
+                <BadgeSvg width={22} height={22} style={styles.badgeIcon} />
+              </View>
+              <Text style={styles.subText}>Strategist, Leiden</Text>
+              <Text style={styles.subText}>Branding Consultant</Text>
             </View>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>Johan Smith</Text>
-              <BadgeSvg width={22} height={22} style={styles.badgeIcon} />
-            </View>
-            <Text style={styles.subText}>Strategist, Leiden</Text>
-            <Text style={styles.subText}>Branding Consultant</Text>
             <View style={styles.actionColumn}>
               <View style={styles.likeRow}>
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
@@ -89,9 +91,17 @@ const styles = StyleSheet.create({
     right: 16,
   },
   overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
     paddingTop: 8,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
   timeBadge: {
     backgroundColor: ORANGE,
@@ -128,7 +138,7 @@ const styles = StyleSheet.create({
   actionColumn: {
     flexDirection: 'column',
     alignItems: 'flex-end',
-    marginTop: 14,
+    marginTop: 0,
   },
   likeRow: {
     flexDirection: 'column',
