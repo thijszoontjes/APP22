@@ -1,10 +1,13 @@
 import { Link } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
-export default function WachtwoordVergetenScreen() {
+export default function ResetPasswordScreen() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRepeat, setShowRepeat] = useState(false);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -24,25 +27,46 @@ export default function WachtwoordVergetenScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.title}>Wachtwoord vergeten</Text>
+          <Text style={styles.title}>Nieuw wachtwoord</Text>
           <Text style={styles.subtitle}>
-            Vul je e-mailadres in en wij sturen je een resetlink.
+            Kies een nieuw wachtwoord voor je account.
           </Text>
 
-          <Text style={styles.label}>E-mail</Text>
+          <Text style={styles.label}>Wachtwoord</Text>
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              keyboardType="email-address"
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
           </View>
 
-          <Link href="/reset-password" asChild>
-            <TouchableOpacity style={styles.ctaButton}>
-              <Text style={styles.ctaText}>Stuur mail</Text>
+          <Text style={styles.label}>Wachtwoord herhalen</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              secureTextEntry={!showRepeat}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
-          </Link>
+          </View>
+
+          <TouchableOpacity style={styles.ctaButton}>
+            <Text style={styles.ctaText}>Opslaan</Text>
+          </TouchableOpacity>
 
           <Link href="/login" asChild>
             <TouchableOpacity>
@@ -100,19 +124,26 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1.5,
     borderColor: ORANGE,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 48,
-    justifyContent: 'center',
     backgroundColor: '#fff',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   input: {
     flex: 1,
     fontSize: 16,
     color: '#000',
+    paddingVertical: 0,
+  },
+  eyeImg: {
+    width: 22,
+    height: 22,
+    tintColor: '#b4b4b4',
   },
   ctaButton: {
     height: 40,
