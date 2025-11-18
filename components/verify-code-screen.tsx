@@ -1,10 +1,12 @@
 import { Link } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
-export default function WachtwoordVergetenScreen() {
+export default function VerifyCodeScreen() {
+  const [code, setCode] = useState('');
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -24,23 +26,27 @@ export default function WachtwoordVergetenScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.title}>Wachtwoord vergeten</Text>
+          <Text style={styles.title}>Bevestig code</Text>
           <Text style={styles.subtitle}>
-            Vul je e-mailadres in en wij sturen je een resetlink.
+            Vul de 8-cijferige code uit je e-mail in.
           </Text>
 
-          <Text style={styles.label}>E-mail</Text>
+          <Text style={styles.label}>8-cijferige code</Text>
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              keyboardType="email-address"
+              value={code}
+              onChangeText={(text) => setCode(text.replace(/\\D/g, '').slice(0, 8))}
+              keyboardType="number-pad"
+              maxLength={8}
               autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
 
-          <Link href="/verify-code" asChild>
+          <Link href="/reset-password" asChild>
             <TouchableOpacity style={styles.ctaButton}>
-              <Text style={styles.ctaText}>Stuur mail</Text>
+              <Text style={styles.ctaText}>Bevestigen</Text>
             </TouchableOpacity>
           </Link>
 
@@ -91,7 +97,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1A2233',
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   label: {
     fontSize: 14,
@@ -111,8 +117,9 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     color: '#000',
+    letterSpacing: 4,
   },
   ctaButton: {
     height: 40,
