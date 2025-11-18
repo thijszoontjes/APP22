@@ -1,26 +1,18 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
-import BadgeSvg from '@/assets/images/badge.svg';
-import ChatIconHomepageSvg from '@/assets/images/chat-icon-homepage.svg';
-import HeartIconSvg from '@/assets/images/heart-icon.svg';
-import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
-import LikedIconSvg from '@/assets/images/liked-icon.svg';
-import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
-import { Animated, Easing, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
 const HARD_CODED_RESULTS = [
   {
     id: 'maarten',
-    name: 'Maarten',
-    subtitle: 'Marketing manager, Utrecht',
-    time: '10 minuten geleden',
-    image: require('@/assets/images/homepage-maarten.png'),
-    nameFull: 'Maarten Kuip',
-    subtitleLines: ['Strategist, Leiden', 'Branding Consultant'],
+    name: 'Maarten Kuip',
+    company: 'Design for All, Heerhugowaard',
+    role: 'Webdesigner',
+    avatar: require('@/assets/images/homepage-maarten.png'),
   },
 ];
 
@@ -28,16 +20,6 @@ export default function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [segment, setSegment] = useState<'personen' | 'community'>('personen');
-  const [hearted, setHearted] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const heartScale = useRef(new Animated.Value(1)).current;
-
-  const handleHeartPress = () => {
-    Animated.sequence([
-      Animated.timing(heartScale, { toValue: 1.2, duration: 150, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-      Animated.timing(heartScale, { toValue: 1, duration: 180, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-    ]).start(() => setHearted(h => !h));
-  };
 
   const results = useMemo(() => {
     if (query.trim().length === 0) return [];
@@ -83,47 +65,24 @@ export default function SearchScreen() {
             <Text style={[styles.segmentTextGhost, segment === 'community' && styles.segmentTextActiveGhost]}>Community</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.fullDivider} />
 
         {results.map(result => (
-          <View key={result.id} style={styles.cardWrap}>
-            <ImageBackground
-              source={result.image}
-              style={styles.cardImage}
-              imageStyle={styles.cardImageStyle}
-              resizeMode="cover">
-              <View style={styles.cardTopRow}>
-                <View style={styles.timeBadge}>
-                  <Text style={styles.timeBadgeText}>{result.time}</Text>
-                </View>
-                <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.85} onPress={handleHeartPress}>
-                  <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-                    {hearted ? <HeartTrueIconSvg width={44} height={44} /> : <HeartIconSvg width={44} height={44} />}
-                  </Animated.View>
-                </TouchableOpacity>
+          <View key={result.id} style={styles.listItemWrap}>
+            <View style={styles.listItem}>
+              <Image source={result.avatar} style={styles.avatar} />
+              <View style={styles.listTextBlock}>
+                <Text style={styles.listName}>{result.name}</Text>
+                <Text style={styles.listCompany} numberOfLines={1}>
+                  {result.company}
+                </Text>
+                <Text style={styles.listRole}>{result.role}</Text>
               </View>
-              <View style={styles.cardOverlay}>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.cardName}>{result.nameFull}</Text>
-                    <BadgeSvg width={20} height={20} style={styles.badgeIcon} />
-                  </View>
-                  {result.subtitleLines.map(line => (
-                    <Text key={line} style={styles.cardSubtitle}>{line}</Text>
-                  ))}
-                </View>
-                <View style={styles.actionColumn}>
-                  <View style={styles.likeRow}>
-                    <TouchableOpacity activeOpacity={0.85} onPress={() => setLiked(l => !l)}>
-                      {liked ? <LikedIconSvg width={48} height={48} /> : <NonLikedIconSvg width={48} height={48} />}
-                    </TouchableOpacity>
-                    <Text style={styles.likeCount}>76</Text>
-                  </View>
-                  <TouchableOpacity style={styles.chatButton} activeOpacity={0.85}>
-                    <ChatIconHomepageSvg width={46} height={46} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ImageBackground>
+              <TouchableOpacity activeOpacity={0.9} style={styles.profileButton}>
+                <Text style={styles.profileButtonText}>Open profiel</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.divider} />
           </View>
         ))}
       </ScrollView>
@@ -147,15 +106,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F5F5F5',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EDEDED',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E6E6E6',
   },
   iconPlaceholder: {
     width: 42,
@@ -215,9 +177,12 @@ const styles = StyleSheet.create({
     backgroundColor: ORANGE,
   },
   segmentText: {
-    color: '#fff',
+    color: '#1A2233',
     fontSize: 16,
     fontWeight: '700',
+  },
+  segmentTextActive: {
+    color: '#fff',
   },
   segmentGhost: {
     borderWidth: 1,
@@ -235,90 +200,63 @@ const styles = StyleSheet.create({
   segmentTextActiveGhost: {
     color: '#fff',
   },
-  cardWrap: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 16,
-    backgroundColor: '#000',
+  fullDivider: {
+    height: 2,
+    backgroundColor: 'rgba(255,135,0,0.2)',
+    marginVertical: 6,
+    alignSelf: 'stretch',
+    marginHorizontal: -24,
   },
-  cardImage: {
-    width: '100%',
-    height: 360,
-    justifyContent: 'flex-end',
+  listItemWrap: {
+    paddingHorizontal: 10,
   },
-  cardImageStyle: {
-    width: '100%',
-    height: '100%',
-  },
-  cardTopRow: {
-    position: 'absolute',
-    top: 14,
-    left: 14,
-    right: 14,
+  listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 14,
+    gap: 12,
   },
-  timeBadge: {
-    backgroundColor: ORANGE,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: ORANGE,
   },
-  timeBadgeText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
+  listTextBlock: {
+    flex: 1,
+    gap: 2,
   },
-  topRightIcon: {
-    padding: 4,
+  listName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#000',
   },
-  cardOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+  listCompany: {
+    fontSize: 12.5,
+    color: '#1A2233',
+  },
+  listRole: {
+    fontSize: 12.5,
+    color: '#1A2233',
+  },
+  profileButton: {
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#000',
+    borderRadius: 12,
+    backgroundColor: '#fff',
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  badgeIcon: {
-    marginLeft: 6,
-  },
-  cardName: {
-    color: '#fff',
-    fontSize: 24,
+  profileButtonText: {
+    fontSize: 14,
     fontWeight: '700',
+    color: '#000',
   },
-  cardSubtitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  actionColumn: {
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-  },
-  likeRow: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  likeCount: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  chatButton: {
-    marginTop: 10,
+  divider: {
+    height: 2,
+    backgroundColor: 'rgba(255,135,0,0.2)',
+    marginLeft: 74,
+    marginRight: -20,
   },
 });
