@@ -64,9 +64,11 @@ export default function ResetPasswordScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.ctaButton}>
-            <Text style={styles.ctaText}>Opslaan</Text>
-          </TouchableOpacity>
+          <Link href="/login" asChild>
+            <TouchableOpacity style={styles.ctaButton}>
+              <Text style={styles.ctaText}>Opslaan</Text>
+            </TouchableOpacity>
+          </Link>
 
           <Link href="/login" asChild>
             <TouchableOpacity>

@@ -10,9 +10,9 @@ export default function HomeHeader() {
   return (
     <View style={styles.headerContainer}>
       <View style={styles.topRow}>
-        <View style={styles.iconCircle}>
+        <TouchableOpacity style={styles.iconCircle} activeOpacity={0.8} onPress={() => router.push('/search')}>
           <SearchIconSvg width={28} height={28} />
-        </View>
+        </TouchableOpacity>
         <Text style={styles.title}>Ontdek het netwerk</Text>
         <TouchableOpacity style={styles.iconCircle} activeOpacity={0.8} onPress={() => router.push('/filters')}>
           <FilterIconSvg width={28} height={28} />
