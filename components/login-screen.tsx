@@ -42,9 +42,11 @@ export default function LoginScreen() {
               />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
-          </TouchableOpacity>
+          <Link href="/forgot-password" asChild>
+            <TouchableOpacity>
+              <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
+            </TouchableOpacity>
+          </Link>
           <Link href="/(tabs)" asChild>
             <TouchableOpacity style={styles.loginBtn}>
               <Text style={styles.loginBtnText}>Inloggen</Text>
