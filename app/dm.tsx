@@ -155,6 +155,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: '#F5F5F5',
   },
   list: {
     flex: 1,

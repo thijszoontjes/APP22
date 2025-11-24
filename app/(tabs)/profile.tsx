@@ -1,6 +1,5 @@
 
-
-import SettingsSvg from '@/assets/images/settings-svgrepo-com.svg';
+import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -44,7 +43,7 @@ export default function ProfilePage() {
         title="Profiel"
         actions={[
           <View key="settings" style={styles.optionCircle}>
-            <SettingsSvg width={20} height={20} />
+            <SettingIconSvg width={22} height={22} />
           </View>,
         ]}
       />
@@ -85,9 +84,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   optionCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
