@@ -5,7 +5,6 @@ import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import HomeHeader from '@/components/home-header';
-import HomeNavigationBar from '@/components/home-navigation-bar';
 import React, { useRef, useState } from 'react';
 import { Animated, Easing, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -61,7 +60,7 @@ export default function HomePage() {
           </View>
         </ImageBackground>
       </View>
-      <HomeNavigationBar />
+      {/* Removed custom navigation bar */}
     </View>
   );
 }

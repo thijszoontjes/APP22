@@ -1,10 +1,9 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
-import HomeNavigationBar from '@/components/home-navigation-bar';
+import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, NativeTouchEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 
 const ORANGE = '#FF8700';
 
@@ -109,7 +108,7 @@ export default function FiltersPage() {
         </View>
       </ScrollView>
 
-      <HomeNavigationBar />
+      {/* Removed custom navigation bar */}
     </View>
   );
 }

@@ -1,4 +1,3 @@
-import HomeNavigationBar from '@/components/home-navigation-bar';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -76,7 +75,7 @@ export default function ChatPage() {
           ))}
         </ScrollView>
       </View>
-      <HomeNavigationBar />
+      {/* Removed custom navigation bar */}
     </View>
   );
 }
