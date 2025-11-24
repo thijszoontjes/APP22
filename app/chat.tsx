@@ -1,5 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SendIconSvg from '@/assets/images/send-icon.svg';
+import AppHeader from '@/components/app-header';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -47,16 +48,14 @@ export default function ChatDetail() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
+      <AppHeader
+        title={userName}
+        leading={
           <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.backWrap}>
             <ArrowBackSvg width={24} height={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{userName}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-        <View style={styles.headerLine} />
-      </View>
+        }
+      />
 
       <ScrollView ref={scrollRef} style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
         {messages.length > 0 && (
@@ -107,38 +106,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    paddingTop: 44,
-    paddingBottom: 0,
-    backgroundColor: '#fff',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
   backWrap: {
-    width: 36,
-    height: 36,
+    width: 42,
+    height: 42,
     justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A2233',
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
-  },
-  headerLine: {
-    height: 4,
-    backgroundColor: ORANGE,
-    width: '100%',
+    alignItems: 'center',
   },
   list: {
     flex: 1,

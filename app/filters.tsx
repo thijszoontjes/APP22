@@ -1,5 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
+import AppHeader from '@/components/app-header';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -51,16 +52,15 @@ export default function FiltersPage() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
+      <AppHeader
+        title="Filters aanpassen"
+        backgroundColor="#F6F6F6"
+        leading={
           <TouchableOpacity style={styles.backCircle} activeOpacity={0.8} onPress={() => router.replace('/(tabs)')}>
             <ArrowBackSvg width={22} height={22} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Filters aanpassen</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-        <View style={styles.headerLine} />
-      </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionSpacing} />
@@ -119,20 +119,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     justifyContent: 'space-between',
   },
-  header: {
-    paddingTop: 44,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
-    backgroundColor: '#F6F6F6',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
   backCircle: {
     width: 42,
     height: 42,
@@ -140,22 +126,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 17,
-    fontWeight: '500',
-    color: '#1A2233',
-  },
-  headerSpacer: {
-    width: 42,
-    height: 42,
-  },
-  headerLine: {
-    height: 4,
-    backgroundColor: ORANGE,
-    width: '100%',
   },
   content: {
     flexGrow: 1,

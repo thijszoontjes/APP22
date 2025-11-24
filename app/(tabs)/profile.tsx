@@ -1,6 +1,7 @@
 
 
 import SettingsSvg from '@/assets/images/settings-svgrepo-com.svg';
+import AppHeader from '@/components/app-header';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SceneMap, TabBar, TabView } from 'react-native-tab-view';
@@ -39,16 +40,14 @@ export default function ProfilePage() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>Profiel</Text>
-          <View style={styles.optionCircle}>
+      <AppHeader
+        title="Profiel"
+        actions={[
+          <View key="settings" style={styles.optionCircle}>
             <SettingsSvg width={20} height={20} />
-          </View>
-        </View>
-        <View style={styles.headerLine} />
-      </View>
+          </View>,
+        ]}
+      />
       <View style={styles.profilePicContainer}>
         <View style={styles.profilePicCircle} />
       </View>
@@ -85,23 +84,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    paddingTop: 44,
-    paddingBottom: 0,
-    backgroundColor: '#fff',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  headerSpacer: {
-    width: 36,
-    height: 36,
-  },
   optionCircle: {
     width: 36,
     height: 36,
@@ -109,19 +91,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A2233',
-    textAlign: 'center',
-    flex: 1,
-  },
-  headerLine: {
-    height: 4,
-    backgroundColor: ORANGE,
-    width: '100%',
-    marginBottom: 60,
   },
   profilePicContainer: {
     alignItems: 'center',

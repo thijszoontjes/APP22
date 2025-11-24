@@ -1,4 +1,5 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
+import AppHeader from '@/components/app-header';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -12,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ORANGE = '#FF8700';
 const LIGHT_ORANGE = '#FCDCBE';
@@ -70,17 +70,14 @@ export default function DMChatPage() {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
-        <View style={styles.header}>
+      <AppHeader
+        title={userName}
+        leading={
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
             <ArrowBackSvg width={24} height={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {userName}
-          </Text>
-        </View>
-        <View style={styles.headerLine} />
-      </SafeAreaView>
+        }
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -154,32 +151,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  headerSafeArea: {
-    backgroundColor: '#fff',
-  },
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-  },
   backButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    color: '#202020',
-    fontWeight: '600',
-    marginRight: 44,
-  },
-  headerLine: {
-    height: 2,
-    backgroundColor: ORANGE,
   },
   list: {
     flex: 1,
