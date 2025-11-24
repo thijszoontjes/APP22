@@ -1,17 +1,28 @@
-import AppHeader from '@/components/app-header';
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
-import { Camera, CameraView } from 'expo-camera';
+import CameraFlipSvg from '@/assets/images/camera-icon.svg';
+import FlashSvg from '@/assets/images/flash-icon.svg';
+import FlashOffSvg from '@/assets/images/flash-off-icon.svg';
+import { Camera, CameraType, CameraView } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ORANGE = '#FF8700';
+const COUNTDOWN_START = 60;
 
 export default function PitchRecorder() {
   const router = useRouter();
   const [requesting, setRequesting] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
+  const [facing, setFacing] = useState<CameraType>('front');
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [countdown, setCountdown] = useState(COUNTDOWN_START);
+  const QUESTIONS = ['Wie ben je?', 'Wat breng je?', 'Wat zoek je?'];
   const autoRequested = useRef(false);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
 
   useEffect(() => {
     const checkPermissions = async () => {
@@ -24,49 +35,13 @@ export default function PitchRecorder() {
     checkPermissions();
   }, []);
 
-  const requestMic = async () => {
-    try {
-      setRequesting(true);
-      const result = await Camera.requestMicrophonePermissionsAsync();
-      if (result.status !== 'granted') {
-        Alert.alert('Toestemming nodig', 'Sta microfoontoegang toe om je pitch op te nemen.');
-        setHasPermissions(false);
-        return;
-      }
-      const cam = await Camera.getCameraPermissionsAsync();
-      setHasPermissions(result.status === 'granted' && cam.status === 'granted');
-    } catch (err) {
-      console.warn('Mic permission request failed', err);
-      Alert.alert('Fout', 'Kon microfoontoestemming niet opvragen. Probeer opnieuw.');
-    } finally {
-      setRequesting(false);
-    }
-  };
-
-  const requestCamera = async () => {
-    try {
-      setRequesting(true);
-      const result = await Camera.requestCameraPermissionsAsync();
-      if (result.status !== 'granted') {
-        Alert.alert('Toestemming nodig', 'Sta camera-toegang toe om je pitch op te nemen.');
-        setHasPermissions(false);
-        return;
-      }
-      const mic = await Camera.getMicrophonePermissionsAsync();
-      setHasPermissions(result.status === 'granted' && mic.status === 'granted');
-    } catch (err) {
-      console.warn('Camera permission request failed', err);
-      Alert.alert('Fout', 'Kon cameratoestemming niet opvragen. Probeer opnieuw.');
-    } finally {
-      setRequesting(false);
-    }
-  };
-
   const requestBoth = async () => {
     try {
       setRequesting(true);
-      const mic = await Camera.requestMicrophonePermissionsAsync();
-      const cam = await Camera.requestCameraPermissionsAsync();
+      const [mic, cam] = await Promise.all([
+        Camera.requestMicrophonePermissionsAsync(),
+        Camera.requestCameraPermissionsAsync(),
+      ]);
       setHasPermissions(mic.status === 'granted' && cam.status === 'granted');
       if (mic.status !== 'granted' || cam.status !== 'granted') {
         Alert.alert('Toestemming nodig', 'Sta camera- en microfoontoegang toe om je pitch op te nemen.');
@@ -86,70 +61,310 @@ export default function PitchRecorder() {
     }
   }, [hasPermissions]);
 
-  if (hasPermissions) {
+  useEffect(() => {
+    if (facing === 'front' && torchEnabled) {
+      setTorchEnabled(false);
+    }
+  }, [facing, torchEnabled]);
+
+  useEffect(() => {
+    if (countdown === 0 && isRecording) {
+      stopRecording();
+    }
+  }, [countdown, isRecording]);
+
+  useEffect(() => {
+    return () => {
+      stopCountdown();
+      cameraRef.current?.stopRecording();
+    };
+  }, []);
+
+  const stopCountdown = () => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+  };
+
+  const startCountdown = () => {
+    stopCountdown();
+    setCountdown(COUNTDOWN_START);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+  };
+
+  const finishRecording = () => {
+    stopCountdown();
+    setIsRecording(false);
+    setCountdown(COUNTDOWN_START);
+  };
+
+  const startRecording = async () => {
+    if (!cameraRef.current || isRecording) {
+      return;
+    }
+    try {
+      setIsRecording(true);
+      startCountdown();
+      await cameraRef.current.recordAsync({
+        maxDuration: COUNTDOWN_START,
+        mute: false,
+      });
+    } catch (err) {
+      console.warn('Recording failed', err);
+      Alert.alert('Fout', 'Kon je opname niet starten. Probeer opnieuw.');
+    } finally {
+      finishRecording();
+    }
+  };
+
+  const stopRecording = () => {
+    if (!isRecording) {
+      return;
+    }
+    stopCountdown();
+    setIsRecording(false);
+    cameraRef.current?.stopRecording();
+  };
+
+  const formatTime = () => {
+    if (countdown === COUNTDOWN_START) {
+      return '00:60';
+    }
+    return `00:${String(Math.max(countdown, 0)).padStart(2, '0')}`;
+  };
+
+  const currentQuestion = QUESTIONS[Math.min(Math.floor((COUNTDOWN_START - countdown) / 15), QUESTIONS.length - 1)];
+
+  if (!hasPermissions) {
     return (
-      <View style={styles.fullscreenCamera}>
-        <CameraView style={styles.cameraView} />
+      <View style={styles.permissionContainer}>
+        <SafeAreaView style={styles.permissionInner}>
+          <View style={styles.permissionHeader}>
+            <Pressable onPress={() => router.back()} style={styles.backCircle} accessibilityRole="button">
+              <ArrowBackSvg width={18} height={18} />
+            </Pressable>
+            <Text style={styles.permissionTitle}>Toestemmingen</Text>
+            <View style={styles.backCircle} />
+          </View>
+          <View style={styles.permissionBody}>
+            <Text style={styles.intro}>
+              Om jouw videopitch op te nemen, is toegang tot de camera en microfoon vereist.{'\n'}
+              Geef hieronder toestemming om deze functies te gebruiken. Je kunt deze toestemmingen op elk moment
+              intrekken via de instellingen van je telefoon.
+            </Text>
+
+            <View style={styles.buttons}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.permissionButton}
+                onPress={requestBoth}
+                disabled={requesting}
+              >
+                <Text style={styles.permissionText}>Sta camera en microfoon toe</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <AppHeader
-        title="Toestemmingen"
-        leading={
-          <Pressable onPress={() => router.back()} style={styles.backCircle} accessibilityRole="button">
-            <ArrowBackSvg width={18} height={18} />
-          </Pressable>
-        }
+    <View style={styles.recorderContainer}>
+      <CameraView
+        ref={ref => {
+          cameraRef.current = ref;
+        }}
+        style={StyleSheet.absoluteFill}
+        facing={facing}
+        mode="video"
+        enableTorch={torchEnabled && facing === 'back'}
       />
-
-      <View style={styles.body}>
-        <Text style={styles.intro}>
-          Om jouw videopitch op te nemen, is toegang tot de camera en microfoon vereist.{'\n'}
-          Geef hieronder toestemming om deze functies te gebruiken. Je kunt deze toestemmingen op elk moment intrekken via de instellingen van je telefoon.
-        </Text>
-
-        <View style={styles.buttons}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.permissionButton}
-            onPress={requestMic}
-            disabled={requesting}
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() => {
+              if (isRecording) {
+                stopRecording();
+              }
+              router.back();
+            }}
+            style={styles.iconButton}
+            accessibilityRole="button"
           >
-            <Text style={styles.permissionText}>Ik geef toestemming om mijn microfoon te gebruiken</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.permissionButton}
-            onPress={requestCamera}
-            disabled={requesting}
+            <ArrowBackSvg width={20} height={20} />
+          </Pressable>
+          <View style={styles.timerBlock}>
+            <View style={styles.timerBadge}>
+              {isRecording ? <View style={styles.recordDot} /> : null}
+              <Text style={styles.timerText}>{formatTime()}</Text>
+            </View>
+            {isRecording ? <Text style={styles.questionText}>{currentQuestion}</Text> : null}
+          </View>
+          <Pressable
+            onPress={() => setFacing(prev => (prev === 'back' ? 'front' : 'back'))}
+            style={styles.iconButton}
           >
-            <Text style={styles.permissionText}>Ik geef toestemming om mijn camera te gebruiken</Text>
-          </TouchableOpacity>
+            <CameraFlipSvg width={22} height={22} color="#1A2233" />
+          </Pressable>
         </View>
-      </View>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.recordButton, isRecording && styles.recordButtonActive]}
+            onPress={startRecording}
+            disabled={isRecording}
+          >
+            <Text style={styles.recordButtonText}>{isRecording ? 'Pitch opslaan' : 'Pitch opnemen'}</Text>
+          </TouchableOpacity>
+          <Pressable
+            onPress={() => setTorchEnabled(prev => !prev)}
+            style={[
+              styles.flashButton,
+              torchEnabled && styles.flashButtonActive,
+              facing === 'front' && styles.flashButtonDisabled,
+            ]}
+            disabled={facing === 'front'}
+            hitSlop={8}
+          >
+            {torchEnabled ? (
+              <FlashSvg width={34} height={34} color={ORANGE} />
+            ) : (
+              <FlashOffSvg width={34} height={34} color="#fff" />
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  fullscreenCamera: {
+  recorderContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
-  cameraView: {
+  overlay: {
     flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingBottom: 26,
   },
-  body: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+  },
+  iconButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timerBlock: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  recordDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF3B30',
+  },
+  timerText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  questionText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  flashButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flashButtonActive: {
+    backgroundColor: 'transparent',
+  },
+  flashButtonDisabled: {
+    opacity: 0.4,
+  },
+  recordButton: {
+    width: '60%',
+    maxWidth: 280,
+    backgroundColor: ORANGE,
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  recordButtonActive: {
+    backgroundColor: '#D85E00',
+  },
+  recordButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  sideSpacer: {
+    width: 52,
+  },
+  permissionContainer: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 22,
+    backgroundColor: '#fff',
+  },
+  permissionInner: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  permissionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+  },
+  permissionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A2233',
+  },
+  permissionBody: {
+    flex: 1,
+    paddingTop: 32,
   },
   backCircle: {
     width: 46,
