@@ -1,10 +1,20 @@
+import AppHeader from '@/components/app-header';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ImageSourcePropType, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
-const CHATS = [
+type ChatListItem = {
+  id: string;
+  name: string;
+  message: string;
+  time: string;
+  avatar?: ImageSourcePropType;
+  initials?: string;
+};
+
+const CHATS: ChatListItem[] = [
   {
     id: '1',
     name: 'Maarten Kuip',
@@ -31,7 +41,7 @@ const CHATS = [
 export default function ChatPage() {
   const router = useRouter();
 
-  const handleOpenDM = (chat) => {
+  const handleOpenDM = (chat: ChatListItem) => {
     router.push({
       pathname: '/dm',
       params: { userId: chat.id, userName: chat.name },
@@ -41,12 +51,7 @@ export default function ChatPage() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerTitleWrapper}>
-            <Text style={styles.headerTitle}>Chat</Text>
-          </View>
-          <View style={styles.headerLine} />
-        </View>
+        <AppHeader title="Chat" />
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {CHATS.map(chat => (
             <View key={chat.id}>
@@ -88,30 +93,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  header: {
-    paddingTop: 52,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
-    alignItems: 'center',
-  },
-  headerTitleWrapper: {
-    width: '100%',
-    paddingTop: 18,
-    paddingBottom: 6,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A2233',
-    letterSpacing: 0.1,
-  },
-  headerLine: {
-    marginTop: 10,
-    height: 4,
-    backgroundColor: ORANGE,
-    width: '100%',
   },
   list: {
     flex: 1,

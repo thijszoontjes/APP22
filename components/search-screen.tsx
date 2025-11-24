@@ -1,5 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
+import AppHeader from '@/components/app-header';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -28,16 +29,15 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
+      <AppHeader
+        title="Zoeken"
+        backgroundColor="#F6F6F6"
+        leading={
           <TouchableOpacity style={styles.iconCircle} activeOpacity={0.85} onPress={() => router.replace('/(tabs)')}>
             <ArrowBackSvg width={22} height={22} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Zoeken</Text>
-          <View style={styles.iconPlaceholder} />
-        </View>
-        <View style={styles.headerLine} />
-      </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.searchBox}>
@@ -95,20 +95,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    paddingTop: 44,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
-    backgroundColor: '#F6F6F6',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
   iconCircle: {
     width: 48,
     height: 48,
@@ -118,21 +104,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E6E6E6',
-  },
-  iconPlaceholder: {
-    width: 42,
-    height: 42,
-  },
-  headerTitle: {
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#1A2233',
-  },
-  headerLine: {
-    height: 4,
-    backgroundColor: ORANGE,
-    width: '100%',
   },
   body: {
     paddingHorizontal: 20,

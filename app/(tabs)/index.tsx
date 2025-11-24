@@ -1,14 +1,18 @@
 import BadgeSvg from '@/assets/images/badge.svg';
 import ChatIconHomepageSvg from '@/assets/images/chat-icon-homepage.svg';
+import FilterIconSvg from '@/assets/images/filter-icon.svg';
 import HeartIconSvg from '@/assets/images/heart-icon.svg';
 import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
-import HomeHeader from '@/components/home-header';
+import SearchIconSvg from '@/assets/images/search-icon.svg';
+import AppHeader from '@/components/app-header';
+import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { Animated, Easing, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HomePage() {
+  const router = useRouter();
   const [liked, setLiked] = useState(false);
   const [hearted, setHearted] = useState(false);
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -22,7 +26,19 @@ export default function HomePage() {
 
   return (
     <View style={styles.container}>
-      <HomeHeader />
+      <AppHeader
+        title="Ontdek het netwerk"
+        leading={
+          <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/search')}>
+            <SearchIconSvg width={26} height={26} />
+          </TouchableOpacity>
+        }
+        actions={[
+          <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
+            <FilterIconSvg width={26} height={26} />
+          </TouchableOpacity>,
+        ]}
+      />
       <View style={styles.content}>
         <ImageBackground
           source={require('@/assets/images/homepage-maarten.png')}
@@ -72,6 +88,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     justifyContent: 'space-between',
+  },
+  headerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
