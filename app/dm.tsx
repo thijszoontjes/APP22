@@ -274,7 +274,9 @@ const styles = StyleSheet.create({
   plusIcon: {
     fontSize: 20,
     color: '#B4B4B4',
-    marginTop: 0,
+    fontWeight: '500',
+    lineHeight: 22,
+    textAlign: 'center',
   },
   textInput: {
     flex: 1,
