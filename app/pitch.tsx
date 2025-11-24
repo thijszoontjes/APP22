@@ -2,6 +2,7 @@ import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import CameraFlipSvg from '@/assets/images/camera-icon.svg';
 import FlashSvg from '@/assets/images/flash-icon.svg';
 import FlashOffSvg from '@/assets/images/flash-off-icon.svg';
+import { addPitch } from '@/constants/pitch-store';
 import { Camera, CameraType, CameraView } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -105,13 +106,19 @@ export default function PitchRecorder() {
     if (!cameraRef.current || isRecording) {
       return;
     }
+    let savedUri: string | null = null;
     try {
       setIsRecording(true);
       startCountdown();
-      await cameraRef.current.recordAsync({
+      const result = await cameraRef.current.recordAsync({
         maxDuration: COUNTDOWN_START,
         mute: false,
       });
+      if (result?.uri) {
+        savedUri = result.uri;
+        addPitch(result.uri);
+        router.replace('/(tabs)/profile');
+      }
     } catch (err) {
       console.warn('Recording failed', err);
       Alert.alert('Fout', 'Kon je opname niet starten. Probeer opnieuw.');
@@ -216,15 +223,14 @@ export default function PitchRecorder() {
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.recordButton, isRecording && styles.recordButtonActive]}
-            onPress={startRecording}
-            disabled={isRecording}
+            onPress={isRecording ? stopRecording : startRecording}
           >
             <Text style={styles.recordButtonText}>{isRecording ? 'Pitch opslaan' : 'Pitch opnemen'}</Text>
           </TouchableOpacity>
           <Pressable
             onPress={() => setTorchEnabled(prev => !prev)}
             style={[
-              styles.flashButton,
+              styles.bottomFlashButton,
               torchEnabled && styles.flashButtonActive,
               facing === 'front' && styles.flashButtonDisabled,
             ]}
@@ -232,9 +238,9 @@ export default function PitchRecorder() {
             hitSlop={8}
           >
             {torchEnabled ? (
-              <FlashSvg width={34} height={34} color={ORANGE} />
+              <FlashSvg width={32} height={32} color={ORANGE} />
             ) : (
-              <FlashOffSvg width={34} height={34} color="#fff" />
+              <FlashOffSvg width={32} height={32} color="#fff" />
             )}
           </Pressable>
         </View>
@@ -299,12 +305,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   bottomBar: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    paddingHorizontal: 22,
+    paddingBottom: 6,
+    position: 'relative',
   },
-  flashButton: {
+  flashButtonActive: {
+    backgroundColor: 'rgba(255,135,0,0.18)',
+  },
+  flashButtonDisabled: {
+    opacity: 0.4,
+  },
+  bottomFlashButton: {
+    position: 'absolute',
+    right: 22,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -312,15 +327,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  flashButtonActive: {
-    backgroundColor: 'transparent',
-  },
-  flashButtonDisabled: {
-    opacity: 0.4,
-  },
   recordButton: {
-    width: '60%',
-    maxWidth: 280,
+    alignSelf: 'center',
+    width: '64%',
+    maxWidth: 300,
     backgroundColor: ORANGE,
     borderRadius: 18,
     paddingVertical: 16,

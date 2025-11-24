@@ -1,34 +1,14 @@
-
 import AppHeader from '@/components/app-header';
-import React, { useState } from 'react';
-import { useRouter } from 'expo-router';
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
+import { getPitches, subscribe } from '@/constants/pitch-store';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SceneMap, TabBar, TabView } from 'react-native-tab-view';
+import { TabBar, TabView } from 'react-native-tab-view';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const tabLabels = ['Eigen video', 'Gelikte video', 'Favorieten'];
-
-const FirstRoute = () => (
-  <View style={styles.tabContentContainer}>
-    <Text style={styles.tabContentText}>Tab: Eigen video</Text>
-  </View>
-);
-const SecondRoute = () => (
-  <View style={styles.tabContentContainer}>
-    <Text style={styles.tabContentText}>Tab: Gelikte video</Text>
-  </View>
-);
-const ThirdRoute = () => (
-  <View style={styles.tabContentContainer}>
-    <Text style={styles.tabContentText}>Tab: Favorieten</Text>
-  </View>
-);
-
-const renderScene = SceneMap({
-  first: FirstRoute,
-  second: SecondRoute,
-  third: ThirdRoute,
-});
+const ORANGE = '#FF8700';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -38,6 +18,26 @@ export default function ProfilePage() {
     { key: 'second', title: tabLabels[1] },
     { key: 'third', title: tabLabels[2] },
   ]);
+  const [pitches, setPitches] = useState(getPitches());
+  const [activeUri, setActiveUri] = useState<string | null>(pitches[0]?.uri ?? null);
+  const player = useVideoPlayer(activeUri ? { uri: activeUri } : null);
+
+  useEffect(() => {
+    const unsubscribe = subscribe(() => {
+      setPitches(getPitches());
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    setActiveUri(getPitches()[0]?.uri ?? null);
+  }, [pitches]);
+
+  useEffect(() => {
+    if (player && activeUri) {
+      player.replaceAsync({ uri: activeUri }).catch(err => console.warn('Video replace failed', err));
+    }
+  }, [activeUri, player]);
 
   return (
     <View style={styles.container}>
@@ -64,7 +64,43 @@ export default function ProfilePage() {
       </View>
       <TabView
         navigationState={{ index, routes }}
-        renderScene={renderScene}
+        renderScene={({ route }) => {
+          if (route.key === 'first') {
+            return (
+              <View style={styles.tabContentContainer}>
+                {activeUri ? (
+                  <View style={styles.videoCard}>
+                    {player ? (
+                      <VideoView
+                        style={styles.videoPlayer}
+                        player={player}
+                        contentFit="cover"
+                        allowsFullscreen
+                        allowsPictureInPicture={false}
+                        nativeControls
+                      />
+                    ) : null}
+                    <Text style={styles.videoLabel}>Laatste pitch</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.tabContentText}>Nog geen video’s opgeslagen.</Text>
+                )}
+              </View>
+            );
+          }
+          if (route.key === 'second') {
+            return (
+              <View style={styles.tabContentContainer}>
+                <Text style={styles.tabContentText}>Tab: Gelikte video</Text>
+              </View>
+            );
+          }
+          return (
+            <View style={styles.tabContentContainer}>
+              <Text style={styles.tabContentText}>Tab: Favorieten</Text>
+            </View>
+          );
+        }}
         onIndexChange={setIndex}
         initialLayout={{ width: 360 }}
         renderTabBar={props => (
@@ -82,8 +118,6 @@ export default function ProfilePage() {
     </View>
   );
 }
-
-const ORANGE = '#FF8700';
 
 const styles = StyleSheet.create({
   container: {
@@ -109,7 +143,7 @@ const styles = StyleSheet.create({
     width: 154,
     aspectRatio: 1,
     borderRadius: 77,
-    backgroundColor: '#FF8700', // bright orange for visibility
+    backgroundColor: '#FF8700',
     borderWidth: 2,
     borderColor: '#fff',
     shadowColor: '#000',
@@ -154,46 +188,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
   },
-  tabBarContainer: {
-    marginTop: 16,
-    marginBottom: 16,
-    position: 'relative',
-  },
-  tabBarRow: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  tabBarTab: {
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabBarText: {
-    fontSize: 16,
-    color: '#5d5d5d',
-    fontWeight: '500',
-  },
-  tabBarTextActive: {
-    color: '#1A2233',
-    fontWeight: '700',
-  },
-  tabBarIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    height: 4,
-    backgroundColor: ORANGE,
-    borderRadius: 2,
-  },
   tabContentContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 80,
+    paddingHorizontal: 16,
   },
   tabContentText: {
     fontSize: 18,
     color: '#1A2233',
     fontWeight: '600',
+  },
+  videoCard: {
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+    gap: 8,
+  },
+  videoPlayer: {
+    width: '100%',
+    aspectRatio: 9 / 16,
+    borderRadius: 16,
+    backgroundColor: '#000',
+  },
+  videoLabel: {
+    fontSize: 16,
+    color: '#1A2233',
+    fontWeight: '700',
   },
 });
