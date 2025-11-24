@@ -2,8 +2,11 @@ import { Link } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export default function LoginScreen() {
+const ORANGE = '#FF8700';
+
+export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
+  const [showRepeat, setShowRepeat] = useState(false);
 
   return (
     <KeyboardAvoidingView
@@ -15,26 +18,28 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <View style={styles.topSection}>
+        <View style={styles.hero}>
           <Image
             source={require('@/assets/images/login-header.png')}
-            style={styles.bgImage}
+            style={styles.heroImage}
             resizeMode="cover"
           />
         </View>
-        <View style={styles.formSection}>
-          <Text style={styles.title}>Inloggen</Text>
-          <Text style={styles.label}>E-mail</Text>
-          <View style={styles.inputBox}>
-            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" />
-          </View>
+
+        <View style={styles.form}>
+          <Text style={styles.title}>Nieuw wachtwoord</Text>
+          <Text style={styles.subtitle}>
+            Kies een nieuw wachtwoord voor je account.
+          </Text>
+
           <Text style={styles.label}>Wachtwoord</Text>
-          <View style={styles.inputBox}>
+          <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
               secureTextEntry={!showPassword}
+              autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
+            <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
               <Image
                 source={require('@/assets/images/eye.png')}
                 style={styles.eyeImg}
@@ -42,24 +47,34 @@ export default function LoginScreen() {
               />
             </TouchableOpacity>
           </View>
-          <Link href="/forgot-password" asChild>
-            <TouchableOpacity>
-              <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
+
+          <Text style={styles.label}>Wachtwoord herhalen</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              secureTextEntry={!showRepeat}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
-          </Link>
-          <Link href="/(tabs)" asChild>
-            <TouchableOpacity style={styles.loginBtn}>
-              <Text style={styles.loginBtnText}>Inloggen</Text>
-            </TouchableOpacity>
-          </Link>
-          <View style={styles.registerRow}>
-            <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
-            <Link href="/register" asChild>
-              <TouchableOpacity>
-                <Text style={styles.registerLink}>Registreer hier</Text>
-              </TouchableOpacity>
-            </Link>
           </View>
+
+          <Link href="/login" asChild>
+            <TouchableOpacity style={styles.ctaButton}>
+              <Text style={styles.ctaText}>Opslaan</Text>
+            </TouchableOpacity>
+          </Link>
+
+          <Link href="/login" asChild>
+            <TouchableOpacity>
+              <Text style={styles.backLink}>Terug naar inloggen</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -76,97 +91,81 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 220, // extra space so inputs/buttons clear the keyboard
+    paddingBottom: 200,
   },
-  topSection: {
+  hero: {
     height: '40%',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 0,
   },
-  bgImage: {
+  heroImage: {
     width: '100%',
     height: '100%',
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
   },
-  formSection: {
-    flex: 1,
-    paddingHorizontal: 32,
+  form: {
+    paddingHorizontal: 28,
     paddingTop: 24,
   },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '400',
     textAlign: 'center',
-    marginBottom: 32,
     color: '#000',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#1A2233',
+    textAlign: 'center',
+    marginBottom: 28,
   },
   label: {
     fontSize: 14,
     color: '#1A2233',
-    marginBottom: 6,
     marginLeft: 4,
+    marginBottom: 6,
   },
-  inputBox: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#FF8700',
-    borderRadius: 16,
-    marginBottom: 18,
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
+    borderColor: ORANGE,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     height: 48,
+    backgroundColor: '#fff',
+    marginBottom: 16,
   },
   input: {
     flex: 1,
     fontSize: 16,
     color: '#000',
-    backgroundColor: 'transparent',
-  },
-  eyeIcon: {
-    padding: 4,
+    paddingVertical: 0,
   },
   eyeImg: {
     width: 22,
     height: 22,
     tintColor: '#b4b4b4',
   },
-  forgot: {
-    color: '#6080FF',
-    fontSize: 15,
-    marginBottom: 24,
-    marginLeft: 4,
-  },
-  loginBtn: {
-    backgroundColor: '#FF8700',
+  ctaButton: {
+    height: 40,
+    backgroundColor: ORANGE,
     borderRadius: 10,
-    alignItems: 'center',
     justifyContent: 'center',
-    height: 38,
-    marginBottom: 24,
-    width: 160,
+    alignItems: 'center',
+    marginTop: 8,
+    width: 170,
     alignSelf: 'center',
   },
-  loginBtnText: {
+  ctaText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
   },
-  registerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  registerText: {
-    color: '#222',
-    fontSize: 15,
-  },
-  registerLink: {
+  backLink: {
+    marginTop: 18,
     color: '#6080FF',
     fontSize: 15,
-    marginLeft: 2,
+    textAlign: 'center',
   },
 });

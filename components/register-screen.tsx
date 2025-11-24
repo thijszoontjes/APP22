@@ -1,93 +1,98 @@
 import { Link } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeat, setShowRepeat] = useState(false);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.hero}>
-        <Image
-          source={require('@/assets/images/login-header.png')}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-      </View>
-
-      <View style={styles.form}>
-        <Text style={styles.title}>Account aanmaken</Text>
-
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="Naam"
-            placeholderTextColor="#7a7a7a"
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <Image
+            source={require('@/assets/images/login-header.png')}
+            style={styles.heroImage}
+            resizeMode="cover"
           />
         </View>
 
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="E-mail"
-            placeholderTextColor="#7a7a7a"
-            keyboardType="email-address"
-          />
-        </View>
+        <View style={styles.form}>
+          <Text style={styles.title}>Account aanmaken</Text>
 
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="Telefoonnummer"
-            placeholderTextColor="#7a7a7a"
-            keyboardType="phone-pad"
-          />
-        </View>
+          <Text style={styles.label}>Naam</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput style={styles.input} autoCapitalize="words" />
+          </View>
 
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="Wachtwoord"
-            placeholderTextColor="#7a7a7a"
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
-            <Image
-              source={require('@/assets/images/eye.png')}
-              style={styles.eyeImg}
-              resizeMode="contain"
+          <Text style={styles.label}>E-mail</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
-          </TouchableOpacity>
-        </View>
+          </View>
 
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="Wachtwoord herhalen"
-            placeholderTextColor="#7a7a7a"
-            secureTextEntry={!showRepeat}
-          />
-          <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
-            <Image
-              source={require('@/assets/images/eye.png')}
-              style={styles.eyeImg}
-              resizeMode="contain"
+          <Text style={styles.label}>Telefoonnummer</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              keyboardType="phone-pad"
             />
-          </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>Wachtwoord</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>Wachtwoord herhalen</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              secureTextEntry={!showRepeat}
+            />
+            <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
+              <Image
+                source={require('@/assets/images/eye.png')}
+                style={styles.eyeImg}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Link href="/login" asChild>
+            <TouchableOpacity style={styles.submitButton}>
+              <Text style={styles.submitText}>Registreer</Text>
+            </TouchableOpacity>
+          </Link>
+
+          <Link href="/login" asChild>
+            <TouchableOpacity>
+              <Text style={styles.backLink}>Terug naar inloggen</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
-
-        <TouchableOpacity style={styles.submitButton}>
-          <Text style={styles.submitText}>Registreer</Text>
-        </TouchableOpacity>
-
-        <Link href="/login" asChild>
-          <TouchableOpacity>
-            <Text style={styles.backLink}>Terug naar inloggen</Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -97,6 +102,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 220, // extra space so bottom fields/buttons clear the keyboard
   },
   hero: {
     height: '40%',
@@ -163,6 +175,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#121212',
     marginBottom: 28,
+  },
+  label: {
+    fontSize: 14,
+    color: '#1A2233',
+    marginLeft: 4,
+    marginBottom: 6,
   },
   inputWrapper: {
     flexDirection: 'row',

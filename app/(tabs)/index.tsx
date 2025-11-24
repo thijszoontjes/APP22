@@ -1,98 +1,155 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import BadgeSvg from '@/assets/images/badge.svg';
+import ChatIconHomepageSvg from '@/assets/images/chat-icon-homepage.svg';
+import HeartIconSvg from '@/assets/images/heart-icon.svg';
+import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
+import LikedIconSvg from '@/assets/images/liked-icon.svg';
+import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
+import HomeHeader from '@/components/home-header';
+import React, { useRef, useState } from 'react';
+import { Animated, Easing, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function HomePage() {
+  const [liked, setLiked] = useState(false);
+  const [hearted, setHearted] = useState(false);
+  const heartScale = useRef(new Animated.Value(1)).current;
 
-export default function HomeScreen() {
+  const handleHeartPress = () => {
+    Animated.sequence([
+      Animated.timing(heartScale, { toValue: 1.2, duration: 150, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(heartScale, { toValue: 1, duration: 180, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+    ]).start(() => setHearted(h => !h));
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <HomeHeader />
+      <View style={styles.content}>
+        <ImageBackground
+          source={require('@/assets/images/homepage-maarten.png')}
+          style={styles.image}
+          imageStyle={styles.imageStyle}
+          resizeMode="cover">
+          <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8} onPress={handleHeartPress}>
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              {hearted ? <HeartTrueIconSvg width={56} height={56} /> : <HeartIconSvg width={56} height={56} />}
+            </Animated.View>
+          </TouchableOpacity>
+          <View style={styles.overlay}>
+            <View style={{flex: 1}}>
+              <View style={styles.timeBadge}>
+                <Text style={styles.timeBadgeText}>10 minuten geleden</Text>
+              </View>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>Johan Smith</Text>
+                <BadgeSvg width={22} height={22} style={styles.badgeIcon} />
+              </View>
+              <Text style={styles.subText}>Strategist, Leiden</Text>
+              <Text style={styles.subText}>Branding Consultant</Text>
+            </View>
+            <View style={styles.actionColumn}>
+              <View style={styles.likeRow}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
+                  {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
+                </TouchableOpacity>
+                <Text style={styles.likeCount}>76</Text>
+              </View>
+              <TouchableOpacity style={styles.chatButton} activeOpacity={0.8}>
+                <ChatIconHomepageSvg width={52} height={52} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ImageBackground>
+      </View>
+      {/* Removed custom navigation bar */}
+    </View>
   );
 }
 
+const ORANGE = '#FF8700';
+
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    justifyContent: 'space-between',
+  },
+  content: {
+    flex: 1,
+  },
+  image: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  imageStyle: {
+    width: '100%',
+    height: '100%',
+  },
+  topRightIcon: {
+    position: 'absolute',
+    top: 18,
+    right: 16,
+  },
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  timeBadge: {
+    backgroundColor: ORANGE,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  timeBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 4,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  name: {
+    color: '#fff',
+    fontSize: 27,
+    fontWeight: '700',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  badgeIcon: {
+    marginLeft: 6,
+  },
+  subText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  actionColumn: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    marginTop: 0,
+  },
+  likeRow: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  likeCount: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  chatButton: {
+    marginTop: 10,
   },
 });
