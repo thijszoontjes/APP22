@@ -106,7 +106,6 @@ export default function PitchRecorder() {
     if (!cameraRef.current || isRecording) {
       return;
     }
-    let savedUri: string | null = null;
     try {
       setIsRecording(true);
       startCountdown();
@@ -115,9 +114,8 @@ export default function PitchRecorder() {
         mute: false,
       });
       if (result?.uri) {
-        savedUri = result.uri;
         addPitch(result.uri);
-        router.replace('/(tabs)/profile');
+        router.replace({ pathname: '/pitch-preview', params: { uri: result.uri } });
       }
     } catch (err) {
       console.warn('Recording failed', err);
