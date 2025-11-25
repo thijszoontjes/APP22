@@ -9,13 +9,14 @@ import { AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ORANGE = '#FF8700';
 
 export default function PitchPreview() {
   const router = useRouter();
   const params = useLocalSearchParams<{ uri?: string; facing?: string }>();
+  const insets = useSafeAreaInsets();
   const latestUri = getPitches()[0]?.uri ?? null;
   const videoUri = useMemo(() => {
     if (typeof params.uri === 'string' && params.uri.trim().length) {
@@ -99,7 +100,7 @@ export default function PitchPreview() {
           onPlaybackStatusUpdate={handleStatusUpdate}
         />
 
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { top: Math.max(insets.top + 6, 12) }]}>
           <TouchableOpacity style={styles.circleButton} activeOpacity={0.85} onPress={confirmLeave}>
             <ArrowBackSvg width={18} height={18} />
           </TouchableOpacity>
@@ -109,7 +110,7 @@ export default function PitchPreview() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
           <TouchableOpacity style={[styles.orangeButton, styles.wideButton]} activeOpacity={0.9} onPress={restartRecording}>
             <Text style={styles.orangeText}>Opnieuw</Text>
             <OpnieuwIconSvg width={18} height={18} />
@@ -185,20 +186,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 14,
     right: 14,
-    bottom: 16,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+    paddingBottom: 12,
   },
   orangeButton: {
-    height: 46,
+    height: 42,
     borderRadius: 8,
     backgroundColor: ORANGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -206,12 +208,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   wideButton: {
-    flex: 1,
+    flex: 0.92,
     paddingHorizontal: 10,
   },
   playButton: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     paddingHorizontal: 0,
     borderRadius: 10,
   },
