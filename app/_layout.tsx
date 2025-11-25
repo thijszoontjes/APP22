@@ -25,6 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="filters" options={{ headerShown: false }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen name="pitch" options={{ headerShown: false }} />
+        <Stack.Screen name="pitch-preview" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
