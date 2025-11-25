@@ -4,7 +4,7 @@ import FlashSvg from '@/assets/images/flash-icon.svg';
 import FlashOffSvg from '@/assets/images/flash-off-icon.svg';
 import { addPitch } from '@/constants/pitch-store';
 import { Camera, CameraType, CameraView } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,9 +14,11 @@ const COUNTDOWN_START = 60;
 
 export default function PitchRecorder() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ facing?: string }>();
+  const initialFacing = params.facing === 'back' ? 'back' : 'front';
   const [requesting, setRequesting] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
-  const [facing, setFacing] = useState<CameraType>('front');
+  const [facing, setFacing] = useState<CameraType>(initialFacing as CameraType);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [countdown, setCountdown] = useState(COUNTDOWN_START);
@@ -115,7 +117,7 @@ export default function PitchRecorder() {
       });
       if (result?.uri) {
         addPitch(result.uri);
-        router.replace({ pathname: '/pitch-preview', params: { uri: result.uri } });
+        router.replace({ pathname: '/pitch-preview', params: { uri: result.uri, facing } });
       }
     } catch (err) {
       console.warn('Recording failed', err);
