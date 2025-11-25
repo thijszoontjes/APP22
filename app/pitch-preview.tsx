@@ -85,7 +85,7 @@ export default function PitchPreview() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <View style={styles.videoWrapper}>
         <Video
           ref={ref => {
@@ -105,19 +105,19 @@ export default function PitchPreview() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.editPill} activeOpacity={0.85}>
             <Text style={styles.editLabel}>Bewerk</Text>
-            <EditIconSvg width={16} height={16} />
+            <EditIconSvg width={20} height={20} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.orangeButton} activeOpacity={0.9} onPress={restartRecording}>
+          <TouchableOpacity style={[styles.orangeButton, styles.wideButton]} activeOpacity={0.9} onPress={restartRecording}>
             <Text style={styles.orangeText}>Opnieuw</Text>
             <OpnieuwIconSvg width={18} height={18} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.orangeButton, styles.playButton]} activeOpacity={0.9} onPress={togglePlayback}>
-            {isPlaying ? <PauseIconSvg width={20} height={20} /> : <PlayIconSvg width={20} height={20} />}
+            {isPlaying ? <PauseIconSvg width={16} height={16} /> : <PlayIconSvg width={16} height={16} />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.orangeButton} activeOpacity={0.9} onPress={handleUpload}>
+          <TouchableOpacity style={[styles.orangeButton, styles.wideButton]} activeOpacity={0.9} onPress={handleUpload}>
             <Text style={styles.orangeText}>Uploaden</Text>
             <UploadIconSvg width={18} height={18} />
           </TouchableOpacity>
@@ -130,7 +130,7 @@ export default function PitchPreview() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#000',
   },
   videoWrapper: {
     flex: 1,
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   video: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   topBar: {
     position: 'absolute',
@@ -167,9 +167,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: ORANGE,
-    paddingHorizontal: 14,
-    height: 38,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    height: 42,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   orangeButton: {
-    flex: 1,
     height: 46,
     borderRadius: 8,
     backgroundColor: ORANGE,
@@ -206,8 +205,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
+  wideButton: {
+    flex: 1,
+    paddingHorizontal: 10,
+  },
   playButton: {
-    flex: 0.8,
+    width: 44,
+    height: 44,
+    paddingHorizontal: 0,
+    borderRadius: 10,
   },
   orangeText: {
     color: '#fff',
