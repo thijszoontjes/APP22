@@ -16,12 +16,35 @@ export default function HomePage() {
   const [liked, setLiked] = useState(false);
   const [hearted, setHearted] = useState(false);
   const heartScale = useRef(new Animated.Value(1)).current;
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const likeTranslateY = useRef(new Animated.Value(0)).current;
 
   const handleHeartPress = () => {
     Animated.sequence([
       Animated.timing(heartScale, { toValue: 1.2, duration: 150, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
       Animated.timing(heartScale, { toValue: 1, duration: 180, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
     ]).start(() => setHearted(h => !h));
+  };
+
+  const handleLikePress = () => {
+    const willLike = !liked;
+    setLiked(willLike);
+
+    if (willLike) {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(likeScale, { toValue: 1.24, duration: 140, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+          Animated.timing(likeTranslateY, { toValue: -12, duration: 140, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+        ]),
+        Animated.spring(likeTranslateY, { toValue: 0, useNativeDriver: true, bounciness: 14, speed: 14 }),
+        Animated.timing(likeScale, { toValue: 1, duration: 160, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+      ]).start();
+    } else {
+      Animated.sequence([
+        Animated.timing(likeScale, { toValue: 0.9, duration: 120, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+        Animated.timing(likeScale, { toValue: 1, duration: 150, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+      ]).start();
+    }
   };
 
   return (
@@ -64,8 +87,10 @@ export default function HomePage() {
             </View>
             <View style={styles.actionColumn}>
               <View style={styles.likeRow}>
-                <TouchableOpacity activeOpacity={0.8} onPress={() => setLiked(l => !l)}>
-                  {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
+                <TouchableOpacity activeOpacity={0.8} onPress={handleLikePress} style={styles.likeButton}>
+                  <Animated.View style={{ transform: [{ scale: likeScale }, { translateY: likeTranslateY }] }}>
+                    {liked ? <LikedIconSvg width={56} height={56} /> : <NonLikedIconSvg width={56} height={56} />}
+                  </Animated.View>
                 </TouchableOpacity>
                 <Text style={styles.likeCount}>76</Text>
               </View>
@@ -165,6 +190,12 @@ const styles = StyleSheet.create({
   },
   likeRow: {
     flexDirection: 'column',
+    alignItems: 'center',
+  },
+  likeButton: {
+    width: 64,
+    height: 64,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   likeCount: {
