@@ -1,16 +1,80 @@
-import { Link } from 'expo-router';
-import React, { useState } from 'react';
+import { Link, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { registerApi } from '@/hooks/useAuthApi';
 
 export default function RegisterScreen() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeat, setShowRepeat] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const validate = () => {
+    const filled =
+      !!name.trim() &&
+      !!email.trim() &&
+      !!phone.trim() &&
+      !!password &&
+      !!repeatPassword;
+    const emailHasAt = email.includes('@');
+    if (!filled) {
+      setValidationError('Niet alle velden zijn ingevuld');
+      return false;
+    }
+    if (!emailHasAt) {
+      setValidationError('Voer een geldig e-mailadres in');
+      return false;
+    }
+    if (password !== repeatPassword) {
+      setValidationError('Wachtwoorden moeten overeenkomen');
+      return false;
+    }
+    setValidationError('');
+    return true;
+  };
+
+  const handleRegister = async () => {
+    setApiError('');
+    setValidationError('');
+    if (!validate()) return;
+    setLoading(true);
+    const [first_name, ...rest] = name.trim().split(' ');
+    const last_name = rest.join(' ') || first_name;
+
+    try {
+      await registerApi({
+        first_name,
+        last_name,
+        email: email.trim(),
+        phone_number: phone.trim(),
+        password,
+        biography: '',
+        country: '',
+        job_function: '',
+        keycloak_id: '',
+        sector: '',
+        is_blocked: false,
+      });
+      router.replace('/login');
+    } catch (err: any) {
+      setApiError(err?.message || 'Registratie mislukt');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      keyboardVerticalOffset={0}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -29,7 +93,12 @@ export default function RegisterScreen() {
 
           <Text style={styles.label}>Naam</Text>
           <View style={styles.inputWrapper}>
-            <TextInput style={styles.input} autoCapitalize="words" />
+            <TextInput
+              style={styles.input}
+              autoCapitalize="words"
+              value={name}
+              onChangeText={setName}
+            />
           </View>
 
           <Text style={styles.label}>E-mail</Text>
@@ -38,6 +107,8 @@ export default function RegisterScreen() {
               style={styles.input}
               keyboardType="email-address"
               autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
             />
           </View>
 
@@ -46,6 +117,8 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
             />
           </View>
 
@@ -54,6 +127,8 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
               <Image
@@ -69,6 +144,8 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               secureTextEntry={!showRepeat}
+              value={repeatPassword}
+              onChangeText={setRepeatPassword}
             />
             <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
               <Image
@@ -79,11 +156,14 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          <Link href="/login" asChild>
-            <TouchableOpacity style={styles.submitButton}>
-              <Text style={styles.submitText}>Registreer</Text>
-            </TouchableOpacity>
-          </Link>
+          {!!validationError && <Text style={styles.errorText}>{validationError}</Text>}
+          {!!apiError && <Text style={styles.errorText}>{apiError}</Text>}
+          <TouchableOpacity
+            style={[styles.submitButton, loading && { opacity: 0.75 }]}
+            onPress={handleRegister}
+            disabled={loading}>
+            <Text style={styles.submitText}>{loading ? 'Registreren...' : 'Registreer'}</Text>
+          </TouchableOpacity>
 
           <Link href="/login" asChild>
             <TouchableOpacity>
@@ -108,7 +188,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 220, // extra space so bottom fields/buttons clear the keyboard
+    paddingBottom: 320, // extra space so bottom fields/buttons clear the keyboard
   },
   hero: {
     height: '40%',
@@ -203,6 +283,13 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     tintColor: '#b4b4b4',
+  },
+  errorText: {
+    color: '#d11',
+    fontSize: 13,
+    marginTop: -6,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   submitButton: {
     height: 38,

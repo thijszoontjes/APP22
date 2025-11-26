@@ -1,15 +1,52 @@
-import { Link } from 'expo-router';
-import React, { useState } from 'react';
+import { Link, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { loginApi } from '@/hooks/useAuthApi';
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const validate = () => {
+    const filled = !!email.trim() && !!password;
+    const emailHasAt = email.includes('@');
+    if (!filled) {
+      setValidationError('Niet alle velden zijn ingevuld');
+      return false;
+    }
+    if (!emailHasAt) {
+      setValidationError('Voer een geldig e-mailadres in');
+      return false;
+    }
+    setValidationError('');
+    return true;
+  };
+
+  const handleLogin = async () => {
+    setApiError('');
+    setValidationError('');
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      await loginApi({ email: email.trim(), password });
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setApiError(err?.message || 'Inloggen mislukt');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      keyboardVerticalOffset={0}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -26,13 +63,21 @@ export default function LoginScreen() {
           <Text style={styles.title}>Inloggen</Text>
           <Text style={styles.label}>E-mail</Text>
           <View style={styles.inputBox}>
-            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+            <TextInput
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
           </View>
           <Text style={styles.label}>Wachtwoord</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
               secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
             />
             <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
               <Image
@@ -42,16 +87,19 @@ export default function LoginScreen() {
               />
             </TouchableOpacity>
           </View>
+          {!!validationError && <Text style={styles.errorText}>{validationError}</Text>}
+          {!!apiError && <Text style={styles.errorText}>{apiError}</Text>}
           <Link href="/forgot-password" asChild>
             <TouchableOpacity>
               <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
             </TouchableOpacity>
           </Link>
-          <Link href="/(tabs)" asChild>
-            <TouchableOpacity style={styles.loginBtn}>
-              <Text style={styles.loginBtnText}>Inloggen</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            style={[styles.loginBtn, loading && { opacity: 0.75 }]}
+            disabled={loading}
+            onPress={handleLogin}>
+            <Text style={styles.loginBtnText}>{loading ? 'Inloggen...' : 'Inloggen'}</Text>
+          </TouchableOpacity>
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
             <Link href="/register" asChild>
@@ -132,6 +180,13 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     tintColor: '#b4b4b4',
+  },
+  errorText: {
+    color: '#d11',
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 12,
+    marginLeft: 4,
   },
   forgot: {
     color: '#6080FF',
