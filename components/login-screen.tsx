@@ -2,6 +2,7 @@ import { Link, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginApi } from '@/hooks/useAuthApi';
+import { saveAuthToken } from '@/hooks/authStorage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -33,7 +34,8 @@ export default function LoginScreen() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await loginApi({ email: email.trim(), password });
+      const token = await loginApi({ email: email.trim(), password });
+      await saveAuthToken(token.access_token);
       router.replace('/(tabs)');
     } catch (err: any) {
       setApiError(err?.message || 'Inloggen mislukt');
