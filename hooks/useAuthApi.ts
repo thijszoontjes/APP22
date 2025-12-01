@@ -40,6 +40,26 @@ export interface UserModel {
   sector?: string;
 }
 
+const REQUEST_TIMEOUT_MS = 12000;
+
+// Fetch helper met abort/timeout zodat we duidelijke feedback geven ipv oneindig wachten.
+const fetchWithTimeout = async (url: string, options: RequestInit) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(
+        `Verbinding duurde te lang.`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const parseErrorMessage = async (res: Response) => {
   try {
     const text = await res.text();
@@ -57,9 +77,17 @@ const parseErrorMessage = async (res: Response) => {
   }
 };
 
+const normalizeNetworkError = (err: any) => {
+  const message: string = err?.message;
+  if (message?.toLowerCase().includes("network request failed")) {
+    return `Kan geen verbinding maken met de server (${BASE_URL}). Controleer je internetverbinding of probeer het later opnieuw.`;
+  }
+  return message || "Network error";
+};
+
 export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
   try {
-    const res = await fetch(`${BASE_URL}/auth/login`, {
+    const res = await fetchWithTimeout(`${BASE_URL}/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,13 +102,13 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
     }
     return await res.json();
   } catch (err: any) {
-    throw new Error(err?.message || "Network error");
+    throw new Error(normalizeNetworkError(err));
   }
 }
 
 export async function registerApi(payload: RegisterPayload): Promise<UserModel> {
   try {
-    const res = await fetch(`${BASE_URL}/users/register`, {
+    const res = await fetchWithTimeout(`${BASE_URL}/users/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -92,6 +120,6 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
     }
     return await res.json();
   } catch (err: any) {
-    throw new Error(err?.message || "Network error");
+    throw new Error(normalizeNetworkError(err));
   }
 }
