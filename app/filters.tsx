@@ -4,7 +4,7 @@ import AppHeader from '@/components/app-header';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, NativeTouchEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
@@ -14,8 +14,9 @@ export default function FiltersPage() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [sliderValue, setSliderValue] = useState(120);
-  const trackWidthRef = useRef(280); // start with a reasonable width for initial layout
+  const [sliderValue, setSliderValue] = useState(25);
+  const [trackWidth, setTrackWidth] = useState(280); // start with a reasonable width for initial layout
+  const trackWidthRef = useRef(280);
 
   const SLIDER_MIN = 0;
   const SLIDER_MAX = 120;
@@ -29,11 +30,32 @@ export default function FiltersPage() {
     return Math.max(0, Math.min(1, r));
   }, [sliderValue]);
 
-  const trackWidth = trackWidthRef.current || 1;
-  const thumbTranslate = Math.min(Math.max(ratio * trackWidth - 12, -12), trackWidth - 12);
+  const currentWidth = trackWidth || 1;
+  const thumbTranslate = Math.min(Math.max(ratio * currentWidth - 12, -12), currentWidth - 12);
+  const progressWidth = Math.max(0, Math.min(currentWidth, thumbTranslate + 12)); // align fill to thumb center
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: e => {
+          updateValueFromX(e.nativeEvent.locationX);
+        },
+        onPanResponderMove: (_, gestureState) => {
+          // gestureState.dx is relative movement; derive absolute position from ratio + dx
+          const width = Math.max(trackWidthRef.current, 1);
+          const absoluteX = ratio * width + gestureState.dx;
+          updateValueFromX(absoluteX);
+        },
+      }),
+    [ratio],
+  );
 
   const handleTrackLayout = (e: LayoutChangeEvent) => {
-    trackWidthRef.current = e.nativeEvent.layout.width;
+    const width = e.nativeEvent.layout.width;
+    trackWidthRef.current = width;
+    setTrackWidth(width);
   };
 
   const updateValueFromX = (x: number) => {
@@ -62,7 +84,11 @@ export default function FiltersPage() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
+        bounces={false}>
         <View style={styles.sectionSpacing} />
         <View style={styles.sliderBlock}>
           <View style={styles.sliderLabelRow}>
@@ -72,12 +98,9 @@ export default function FiltersPage() {
           <View
             style={styles.sliderTrack}
             onLayout={handleTrackLayout}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-            onResponderTerminationRequest={() => false}
-            onResponderGrant={handleResponder}
-            onResponderMove={handleResponder}>
-            <View style={[styles.sliderProgress, { width: `${ratio * 100}%` }]} />
+            {...panResponder.panHandlers}>
+            <View style={styles.sliderRail} />
+            <View style={[styles.sliderProgress, { width: progressWidth }]} />
             <View style={[styles.sliderThumb, { transform: [{ translateX: thumbTranslate }] }]} />
           </View>
         </View>
@@ -155,24 +178,31 @@ const styles = StyleSheet.create({
     color: '#1A2233',
   },
   sliderTrack: {
+    height: 32,
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'visible',
+  },
+  sliderRail: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f2f2f2',
     borderWidth: 1,
-    borderColor: '#A5A5A5',
-    position: 'relative',
-    overflow: 'visible', // allow thumb to sit fully outside the rail
+    borderColor: '#d0d0d0',
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   sliderProgress: {
     position: 'absolute',
     left: 0,
-    top: 0,
-    bottom: 0,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: ORANGE,
   },
   sliderThumb: {
     position: 'absolute',
-    top: -10,
+    top: 4,
     width: 24,
     height: 24,
     borderRadius: 12,

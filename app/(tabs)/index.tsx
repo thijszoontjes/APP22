@@ -134,6 +134,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     justifyContent: 'space-between',
+    overflow: 'hidden', // voorkom verticale scroll/bounce
   },
   headerIcon: {
     width: 46,
