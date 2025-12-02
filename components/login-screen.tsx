@@ -1,5 +1,5 @@
 import { Link, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginApi } from '@/hooks/useAuthApi';
 import { saveAuthToken } from '@/hooks/authStorage';
@@ -13,9 +13,19 @@ export default function LoginScreen() {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const validate = () => {
-    const filled = !!email.trim() && !!password;
-    const emailHasAt = email.includes('@');
+  const sanitizeInputs = () => {
+    const normalizedEmail = email.replace(/\s+/g, '');
+    const normalizedPassword = password.trim();
+
+    if (normalizedEmail !== email) setEmail(normalizedEmail);
+    if (normalizedPassword !== password) setPassword(normalizedPassword);
+
+    return { normalizedEmail, normalizedPassword };
+  };
+
+  const validate = (emailToCheck: string, passwordToCheck: string) => {
+    const filled = !!emailToCheck && !!passwordToCheck;
+    const emailHasAt = emailToCheck.includes('@');
     if (!filled) {
       setValidationError('Niet alle velden zijn ingevuld');
       return false;
@@ -31,10 +41,11 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setApiError('');
     setValidationError('');
-    if (!validate()) return;
+    const { normalizedEmail, normalizedPassword } = sanitizeInputs();
+    if (!validate(normalizedEmail, normalizedPassword)) return;
     setLoading(true);
     try {
-      const token = await loginApi({ email: email.trim(), password });
+      const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
       await saveAuthToken(token.access_token);
       router.replace('/(tabs)');
     } catch (err: any) {

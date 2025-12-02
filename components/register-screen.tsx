@@ -1,5 +1,5 @@
 import { Link, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { registerApi } from '@/hooks/useAuthApi';
 
@@ -16,14 +16,42 @@ export default function RegisterScreen() {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const validate = () => {
+  const sanitizeInputs = () => {
+    const normalizedName = name.replace(/\s+/g, ' ').trim();
+    const normalizedEmail = email.replace(/\s+/g, '');
+    const normalizedPhone = phone.replace(/\s+/g, '');
+    const normalizedPassword = password.trim();
+    const normalizedRepeat = repeatPassword.trim();
+
+    if (normalizedName !== name) setName(normalizedName);
+    if (normalizedEmail !== email) setEmail(normalizedEmail);
+    if (normalizedPhone !== phone) setPhone(normalizedPhone);
+    if (normalizedPassword !== password) setPassword(normalizedPassword);
+    if (normalizedRepeat !== repeatPassword) setRepeatPassword(normalizedRepeat);
+
+    return {
+      normalizedName,
+      normalizedEmail,
+      normalizedPhone,
+      normalizedPassword,
+      normalizedRepeat,
+    };
+  };
+
+  const validate = (
+    normalizedName: string,
+    normalizedEmail: string,
+    normalizedPhone: string,
+    normalizedPassword: string,
+    normalizedRepeat: string,
+  ) => {
     const filled =
-      !!name.trim() &&
-      !!email.trim() &&
-      !!phone.trim() &&
-      !!password &&
-      !!repeatPassword;
-    const emailHasAt = email.includes('@');
+      !!normalizedName &&
+      !!normalizedEmail &&
+      !!normalizedPhone &&
+      !!normalizedPassword &&
+      !!normalizedRepeat;
+    const emailHasAt = normalizedEmail.includes('@');
     if (!filled) {
       setValidationError('Niet alle velden zijn ingevuld');
       return false;
@@ -32,7 +60,7 @@ export default function RegisterScreen() {
       setValidationError('Voer een geldig e-mailadres in');
       return false;
     }
-    if (password !== repeatPassword) {
+    if (normalizedPassword !== normalizedRepeat) {
       setValidationError('Wachtwoorden moeten overeenkomen');
       return false;
     }
@@ -43,18 +71,26 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     setApiError('');
     setValidationError('');
-    if (!validate()) return;
+    const {
+      normalizedName,
+      normalizedEmail,
+      normalizedPhone,
+      normalizedPassword,
+      normalizedRepeat,
+    } = sanitizeInputs();
+    if (!validate(normalizedName, normalizedEmail, normalizedPhone, normalizedPassword, normalizedRepeat))
+      return;
     setLoading(true);
-    const [first_name, ...rest] = name.trim().split(' ');
+    const [first_name, ...rest] = normalizedName.split(' ');
     const last_name = rest.join(' ') || first_name;
 
     try {
       await registerApi({
         first_name,
         last_name,
-        email: email.trim(),
-        phone_number: phone.trim(),
-        password,
+        email: normalizedEmail,
+        phone_number: normalizedPhone,
+        password: normalizedPassword,
         biography: '',
         country: '',
         job_function: '',
