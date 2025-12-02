@@ -1,4 +1,5 @@
 import { BASE_URL } from "../constants/api";
+import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface LoginRequest {
   email: string;
@@ -9,6 +10,8 @@ export interface TokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
+  refresh_token?: string;
+  refresh_expires_in?: number;
 }
 
 export interface RegisterPayload {
@@ -98,14 +101,62 @@ const normalizeNetworkError = (err: any) => {
   return message || "Network error";
 };
 
-const authHeaders = (token: string) => {
-  if (!token) {
+const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
+  if (!refresh_token) {
+    throw new Error("Geen refresh token beschikbaar; log opnieuw in.");
+  }
+  try {
+    const res = await fetchWithTimeout(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error("Sessie verlopen. Log opnieuw in.");
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    return await res.json();
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+};
+
+const withAutoRefresh = async (path: string, options: RequestInit = {}): Promise<Response> => {
+  const { accessToken, refreshToken } = await getAuthTokens();
+  if (!accessToken || !refreshToken) {
     throw new Error("Geen sessie gevonden. Log opnieuw in.");
   }
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+
+  const baseHeaders = (options.headers as Record<string, string> | undefined) || {};
+  const headersWithAuth = {
+    ...baseHeaders,
+    Authorization: `Bearer ${accessToken}`,
   };
+
+  const attempt = async (token: string) =>
+    fetchWithTimeout(`${BASE_URL}${path}`, {
+      ...options,
+      headers: { ...headersWithAuth, Authorization: `Bearer ${token}` },
+    });
+
+  let res = await attempt(accessToken);
+
+  if (res.status === 401) {
+    // probeer refresh
+    const refreshed = await refreshApi(refreshToken);
+    if (!refreshed?.access_token || !refreshed?.refresh_token) {
+      await clearAuthToken();
+      throw new Error("Sessie verlopen. Log opnieuw in.");
+    }
+    await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
+    res = await attempt(refreshed.access_token);
+  }
+
+  return res;
 };
 
 export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
@@ -153,11 +204,11 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
   }
 }
 
-export async function getUserInterests(token: string): Promise<UserInterestsInput> {
+export async function getUserInterests(): Promise<UserInterestsInput> {
   try {
-    const res = await fetchWithTimeout(`${BASE_URL}/users/me/interests`, {
+    const res = await withAutoRefresh("/users/me/interests", {
       method: "GET",
-      headers: authHeaders(token),
+      headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
       if (res.status >= 500) {
@@ -171,7 +222,7 @@ export async function getUserInterests(token: string): Promise<UserInterestsInpu
   }
 }
 
-export async function updateUserInterests(token: string, payload: UserInterestsInput): Promise<UserInterestsInput> {
+export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
   try {
     const sanitizedPayload: UserInterestsInput = {};
     Object.entries(payload).forEach(([key, value]) => {
@@ -179,9 +230,9 @@ export async function updateUserInterests(token: string, payload: UserInterestsI
         sanitizedPayload[key] = value;
       }
     });
-    const res = await fetchWithTimeout(`${BASE_URL}/users/me/interests`, {
+    const res = await withAutoRefresh("/users/me/interests", {
       method: "PUT",
-      headers: authHeaders(token),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sanitizedPayload),
     });
     if (!res.ok) {

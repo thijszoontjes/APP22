@@ -2,7 +2,7 @@ import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginApi } from '@/hooks/useAuthApi';
-import { saveAuthToken } from '@/hooks/authStorage';
+import { saveAuthTokens } from '@/hooks/authStorage';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -46,7 +46,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
-      await saveAuthToken(token.access_token);
+      if (!token?.access_token || !token?.refresh_token) {
+        throw new Error('Ongeldige login-response: ontbrekende tokens');
+      }
+      await saveAuthTokens(token.access_token, token.refresh_token);
       router.replace('/(tabs)');
     } catch (err: any) {
       setApiError(err?.message || 'Inloggen mislukt');

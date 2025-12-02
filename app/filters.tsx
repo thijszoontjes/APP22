@@ -1,7 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
 import AppHeader from '@/components/app-header';
-import { getStoredToken } from '@/hooks/authStorage';
 import { getUserInterests, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -39,16 +38,28 @@ export default function FiltersPage() {
     navigation?.setOptions?.({ gestureEnabled: false });
   }, [navigation]);
 
+  const normalizeBoolean = (val: any) => {
+    if (val === true) return true;
+    if (val === 1) return true;
+    if (typeof val === 'string') {
+      const lower = val.toLowerCase();
+      return lower === 'true' || lower === '1' || lower === 'yes';
+    }
+    return false;
+  };
+
   const loadFilters = useCallback(async () => {
     setLoadingFilters(true);
     setErrorMessage('');
     try {
-      const token = await getStoredToken();
-      const data = await getUserInterests(token || '');
-      const activeCategories = CATEGORY_OPTIONS.filter(opt => data?.[opt.key as keyof UserInterestsInput]).map(opt => opt.key);
+      const data = await getUserInterests();
+      const activeCategories = CATEGORY_OPTIONS.filter(opt =>
+        normalizeBoolean(data?.[opt.key as keyof UserInterestsInput]),
+      ).map(opt => opt.key);
       setSelectedCategories(activeCategories);
-      const distance = Number(data?.distance_km ?? data?.max_distance_km);
-      if (Number.isFinite(distance)) {
+      const distanceRaw = (data?.distance_km ?? data?.max_distance_km) as number | string | undefined;
+      const distance = typeof distanceRaw === 'string' ? parseFloat(distanceRaw) : distanceRaw;
+      if (Number.isFinite(distance || NaN)) {
         const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(distance)));
         setSliderValue(clamped);
       }
@@ -112,10 +123,9 @@ export default function FiltersPage() {
 
   const handleSave = async () => {
     setErrorMessage('');
-    setStatusMessage('');
-    setSaving(true);
-    try {
-      const token = await getStoredToken();
+      setStatusMessage('');
+      setSaving(true);
+      try {
       const payload: UserInterestsInput = {
         distance_km: sliderValue,
         max_distance_km: sliderValue,
@@ -123,7 +133,7 @@ export default function FiltersPage() {
       CATEGORY_OPTIONS.forEach(opt => {
         payload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
       });
-      await updateUserInterests(token || '', payload);
+      await updateUserInterests(payload);
       setStatusMessage('Filters opgeslagen');
       router.replace('/(tabs)');
     } catch (err: any) {
