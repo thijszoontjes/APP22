@@ -1,7 +1,8 @@
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { registerApi } from '@/hooks/useAuthApi';
+import { registerApi, loginApi } from '@/hooks/useAuthApi';
+import { saveAuthTokens } from '@/hooks/authStorage';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -91,14 +92,15 @@ export default function RegisterScreen() {
         email: normalizedEmail,
         phone_number: normalizedPhone,
         password: normalizedPassword,
-        biography: '',
-        country: '',
-        job_function: '',
-        keycloak_id: '',
-        sector: '',
-        is_blocked: false,
       });
-      router.replace('/login');
+      // Auto-inloggen voor direct gebruik na registreren
+      const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
+      if (token?.access_token && token?.refresh_token) {
+        await saveAuthTokens(token.access_token, token.refresh_token);
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/login');
+      }
     } catch (err: any) {
       setApiError(err?.message || 'Registratie mislukt');
     } finally {

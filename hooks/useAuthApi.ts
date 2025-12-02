@@ -79,7 +79,11 @@ const fetchWithTimeout = async (url: string, options: RequestInit) => {
 const parseErrorMessage = async (res: Response) => {
   try {
     const text = await res.text();
-    if (!text) return "Er is iets misgegaan";
+    if (!text) return `Er is iets misgegaan (HTTP ${res.status})`;
+    const lower = text.toLowerCase();
+    if (lower.includes("<html") || lower.includes("<!doctype")) {
+      return `Server tijdelijk niet beschikbaar (HTTP ${res.status}). Probeer het later opnieuw.`;
+    }
     try {
       const data = JSON.parse(text);
       if (typeof data === "string") return data;
@@ -99,6 +103,25 @@ const normalizeNetworkError = (err: any) => {
     return `Kan geen verbinding maken met de server (${BASE_URL}). Controleer je internetverbinding of probeer het later opnieuw.`;
   }
   return message || "Network error";
+};
+
+const requestWithFallback = async (
+  paths: string[],
+  init: RequestInit,
+): Promise<Response> => {
+  let lastRes: Response | null = null;
+  for (const path of paths) {
+    const url = `${BASE_URL}${path}`;
+    const res = await fetchWithTimeout(url, init);
+    lastRes = res;
+    if (res.status !== 404) {
+      return res;
+    }
+  }
+  if (lastRes) {
+    throw new Error(`Endpoint niet gevonden (404) op ${BASE_URL}. Controleer EXPO_PUBLIC_API_URL.`);
+  }
+  throw new Error("Onbekende fout: geen respons van de server.");
 };
 
 const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
@@ -125,7 +148,7 @@ const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
   }
 };
 
-const withAutoRefresh = async (path: string, options: RequestInit = {}): Promise<Response> => {
+const withAutoRefresh = async (paths: string[], options: RequestInit = {}): Promise<Response> => {
   const { accessToken, refreshToken } = await getAuthTokens();
   if (!accessToken || !refreshToken) {
     throw new Error("Geen sessie gevonden. Log opnieuw in.");
@@ -138,7 +161,7 @@ const withAutoRefresh = async (path: string, options: RequestInit = {}): Promise
   };
 
   const attempt = async (token: string) =>
-    fetchWithTimeout(`${BASE_URL}${path}`, {
+    requestWithFallback(paths, {
       ...options,
       headers: { ...headersWithAuth, Authorization: `Bearer ${token}` },
     });
@@ -154,6 +177,10 @@ const withAutoRefresh = async (path: string, options: RequestInit = {}): Promise
     }
     await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
     res = await attempt(refreshed.access_token);
+    if (res.status === 401) {
+      await clearAuthToken();
+      throw new Error("Sessie verlopen. Log opnieuw in.");
+    }
   }
 
   return res;
@@ -161,13 +188,16 @@ const withAutoRefresh = async (path: string, options: RequestInit = {}): Promise
 
 export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
   try {
-    const res = await fetchWithTimeout(`${BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const res = await requestWithFallback(
+      ["/auth/login", "/api/auth/login"],
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+    );
     if (!res.ok) {
       if (res.status === 401) {
         throw new Error("Account niet gevonden of wachtwoord onjuist");
@@ -185,17 +215,29 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
 
 export async function registerApi(payload: RegisterPayload): Promise<UserModel> {
   try {
-    const res = await fetchWithTimeout(`${BASE_URL}/users/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      if (res.status >= 500) {
-        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+    // Stuur alleen ingevulde velden mee; laat keycloak_id weg als die niet is meegegeven om duplicate key issues te voorkomen.
+    const requestBody: Partial<RegisterPayload> = {};
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") {
+        // @ts-ignore - dynamisch samenstellen
+        requestBody[key] = value;
       }
+    });
+    if (!requestBody.keycloak_id) {
+      // voorkom duplicate constraint op lege keycloak_id door een unieke fallback te zetten
+      requestBody.keycloak_id = `app-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+    }
+    const res = await requestWithFallback(
+      ["/users/register", "/api/users/register"],
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+    if (!res.ok) {
       throw new Error(await parseErrorMessage(res));
     }
     return await res.json();
@@ -206,7 +248,9 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
 
 export async function getUserInterests(): Promise<UserInterestsInput> {
   try {
-    const res = await withAutoRefresh("/users/me/interests", {
+    const res = await withAutoRefresh(
+      ["/users/me/interests", "/api/users/me/interests"],
+      {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -230,11 +274,17 @@ export async function updateUserInterests(payload: UserInterestsInput): Promise<
         sanitizedPayload[key] = value;
       }
     });
-    const res = await withAutoRefresh("/users/me/interests", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sanitizedPayload),
-    });
+    if (sanitizedPayload.distance_km !== undefined) {
+      sanitizedPayload.distance = sanitizedPayload.distance_km;
+    }
+    const res = await withAutoRefresh(
+      ["/users/me/interests", "/api/users/me/interests"],
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sanitizedPayload),
+      },
+    );
     if (!res.ok) {
       if (res.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");

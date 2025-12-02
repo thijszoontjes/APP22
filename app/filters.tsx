@@ -57,7 +57,7 @@ export default function FiltersPage() {
         normalizeBoolean(data?.[opt.key as keyof UserInterestsInput]),
       ).map(opt => opt.key);
       setSelectedCategories(activeCategories);
-      const distanceRaw = (data?.distance_km ?? data?.max_distance_km) as number | string | undefined;
+      const distanceRaw = (data?.distance_km ?? data?.max_distance_km ?? (data as any)?.distance ?? (data as any)?.max_distance) as number | string | undefined;
       const distance = typeof distanceRaw === 'string' ? parseFloat(distanceRaw) : distanceRaw;
       if (Number.isFinite(distance || NaN)) {
         const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(distance)));
@@ -123,19 +123,26 @@ export default function FiltersPage() {
 
   const handleSave = async () => {
     setErrorMessage('');
-      setStatusMessage('');
-      setSaving(true);
-      try {
+    setStatusMessage('');
+    setSaving(true);
+    try {
       const payload: UserInterestsInput = {
         distance_km: sliderValue,
         max_distance_km: sliderValue,
+        distance: sliderValue,
       };
       CATEGORY_OPTIONS.forEach(opt => {
         payload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
       });
+      // Zorg dat niet-geselecteerde categorieën expliciet false worden meegestuurd
+      CATEGORY_OPTIONS.forEach(opt => {
+        if (payload[opt.key as keyof UserInterestsInput] === undefined) {
+          payload[opt.key as keyof UserInterestsInput] = false;
+        }
+      });
       await updateUserInterests(payload);
       setStatusMessage('Filters opgeslagen');
-      router.replace('/(tabs)');
+      await loadFilters(); // herladen zodat UI direct de opgeslagen waarden laat zien
     } catch (err: any) {
       setErrorMessage(err?.message || 'Opslaan mislukt');
     } finally {
