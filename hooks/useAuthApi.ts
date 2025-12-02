@@ -1,4 +1,4 @@
-import { BASE_URL } from "../constants/api";
+import { BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface LoginRequest {
@@ -56,7 +56,8 @@ export interface UserInterestsInput {
   [key: string]: boolean | number | undefined;
 }
 
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 6000;
+const RETRY_STATUSES = new Set([404, 502, 503, 504]);
 
 // Fetch helper met abort/timeout zodat we duidelijke feedback geven ipv oneindig wachten.
 const fetchWithTimeout = async (url: string, options: RequestInit) => {
@@ -100,26 +101,36 @@ const parseErrorMessage = async (res: Response) => {
 const normalizeNetworkError = (err: any) => {
   const message: string = err?.message;
   if (message?.toLowerCase().includes("network request failed")) {
-    return `Kan geen verbinding maken met de server (${BASE_URL}). Controleer je internetverbinding of probeer het later opnieuw.`;
+    const baseHint = BASE_URLS.join(" of ");
+    return `Kan geen verbinding maken met de server (${baseHint}). Controleer je internetverbinding of probeer het later opnieuw.`;
   }
   return message || "Network error";
 };
 
-const requestWithFallback = async (
-  paths: string[],
-  init: RequestInit,
-): Promise<Response> => {
-  let lastRes: Response | null = null;
-  for (const path of paths) {
-    const url = `${BASE_URL}${path}`;
-    const res = await fetchWithTimeout(url, init);
-    lastRes = res;
-    if (res.status !== 404) {
-      return res;
+const requestWithFallback = async (paths: string[], init: RequestInit): Promise<Response> => {
+  let lastError: Error | null = null;
+  const targets = paths.flatMap((path) => BASE_URLS.map((base) => ({
+    base,
+    url: `${base}${path}`,
+  })));
+
+  for (const { url } of targets) {
+    try {
+      const res = await fetchWithTimeout(url, init);
+      if (!RETRY_STATUSES.has(res.status)) {
+        return res;
+      }
+      lastError = new Error(`Endpoint gaf status ${res.status} op ${url}`);
+      // probeer volgende target
+    } catch (err: any) {
+      // timeouts of netwerkfouten: probeer volgende target
+      lastError = err instanceof Error ? err : new Error(String(err));
     }
   }
-  if (lastRes) {
-    throw new Error(`Endpoint niet gevonden (404) op ${BASE_URL}. Controleer EXPO_PUBLIC_API_URL.`);
+
+  if (lastError) {
+    const bases = BASE_URLS.join(", ");
+    throw new Error(`${lastError.message} (geprobeerd op: ${bases})`);
   }
   throw new Error("Onbekende fout: geen respons van de server.");
 };
@@ -129,13 +140,16 @@ const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
     throw new Error("Geen refresh token beschikbaar; log opnieuw in.");
   }
   try {
-    const res = await fetchWithTimeout(`${BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const res = await requestWithFallback(
+      ["/api/auth/refresh", "/auth/refresh"],
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token }),
       },
-      body: JSON.stringify({ refresh_token }),
-    });
+    );
     if (!res.ok) {
       if (res.status === 401) {
         throw new Error("Sessie verlopen. Log opnieuw in.");
@@ -189,7 +203,7 @@ const withAutoRefresh = async (paths: string[], options: RequestInit = {}): Prom
 export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
   try {
     const res = await requestWithFallback(
-      ["/auth/login", "/api/auth/login"],
+      ["/api/auth/login", "/auth/login"],
       {
         method: "POST",
         headers: {
@@ -202,7 +216,7 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
       if (res.status === 401) {
         throw new Error("Account niet gevonden of wachtwoord onjuist");
       }
-       if (res.status >= 500) {
+      if (res.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
       }
       throw new Error(await parseErrorMessage(res));
@@ -228,7 +242,7 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
       requestBody.keycloak_id = `app-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     }
     const res = await requestWithFallback(
-      ["/users/register", "/api/users/register"],
+      ["/api/users/register", "/users/register"],
       {
         method: "POST",
         headers: {
@@ -249,11 +263,12 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
 export async function getUserInterests(): Promise<UserInterestsInput> {
   try {
     const res = await withAutoRefresh(
-      ["/users/me/interests", "/api/users/me/interests"],
+      ["/api/users/me/interests", "/users/me/interests"],
       {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
     if (!res.ok) {
       if (res.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
@@ -278,7 +293,7 @@ export async function updateUserInterests(payload: UserInterestsInput): Promise<
       sanitizedPayload.distance = sanitizedPayload.distance_km;
     }
     const res = await withAutoRefresh(
-      ["/users/me/interests", "/api/users/me/interests"],
+      ["/api/users/me/interests", "/users/me/interests"],
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
