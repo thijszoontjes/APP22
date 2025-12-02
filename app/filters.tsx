@@ -1,14 +1,24 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
 import AppHeader from '@/components/app-header';
+import { getStoredToken } from '@/hooks/authStorage';
+import { getUserInterests, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
-const CATEGORIES = ['Technologie', 'Zorg', 'Social media', 'Marketing', 'Educatie', 'Design', 'Coding'];
+const CATEGORY_OPTIONS = [
+  { key: 'technology', label: 'Technologie' },
+  { key: 'ict', label: 'ICT' },
+  { key: 'investing', label: 'Investeren' },
+  { key: 'marketing', label: 'Marketing' },
+  { key: 'media', label: 'Media' },
+  { key: 'production', label: 'Productie' },
+  { key: 'education', label: 'Educatie' },
+];
 
 export default function FiltersPage() {
   const router = useRouter();
@@ -17,6 +27,10 @@ export default function FiltersPage() {
   const [sliderValue, setSliderValue] = useState(25);
   const [trackWidth, setTrackWidth] = useState(280); // start with a reasonable width for initial layout
   const trackWidthRef = useRef(280);
+  const [loadingFilters, setLoadingFilters] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const SLIDER_MIN = 0;
   const SLIDER_MAX = 120;
@@ -24,6 +38,30 @@ export default function FiltersPage() {
   useEffect(() => {
     navigation?.setOptions?.({ gestureEnabled: false });
   }, [navigation]);
+
+  const loadFilters = useCallback(async () => {
+    setLoadingFilters(true);
+    setErrorMessage('');
+    try {
+      const token = await getStoredToken();
+      const data = await getUserInterests(token || '');
+      const activeCategories = CATEGORY_OPTIONS.filter(opt => data?.[opt.key as keyof UserInterestsInput]).map(opt => opt.key);
+      setSelectedCategories(activeCategories);
+      const distance = Number(data?.distance_km ?? data?.max_distance_km);
+      if (Number.isFinite(distance)) {
+        const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(distance)));
+        setSliderValue(clamped);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Kon filters niet laden');
+    } finally {
+      setLoadingFilters(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFilters();
+  }, [loadFilters]);
 
   const ratio = useMemo(() => {
     const r = (sliderValue - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
@@ -72,6 +110,29 @@ export default function FiltersPage() {
     updateValueFromX(e.nativeEvent.locationX);
   };
 
+  const handleSave = async () => {
+    setErrorMessage('');
+    setStatusMessage('');
+    setSaving(true);
+    try {
+      const token = await getStoredToken();
+      const payload: UserInterestsInput = {
+        distance_km: sliderValue,
+        max_distance_km: sliderValue,
+      };
+      CATEGORY_OPTIONS.forEach(opt => {
+        payload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
+      });
+      await updateUserInterests(token || '', payload);
+      setStatusMessage('Filters opgeslagen');
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Opslaan mislukt');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <AppHeader
@@ -89,6 +150,12 @@ export default function FiltersPage() {
         showsVerticalScrollIndicator={false}
         scrollEnabled={false}
         bounces={false}>
+        {(!!statusMessage || !!errorMessage) && (
+          <View style={styles.messageBox}>
+            {!!statusMessage && <Text style={styles.statusText}>{statusMessage}</Text>}
+            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+          </View>
+        )}
         <View style={styles.sectionSpacing} />
         <View style={styles.sliderBlock}>
           <View style={styles.sliderLabelRow}>
@@ -108,15 +175,15 @@ export default function FiltersPage() {
         <View style={styles.categoryBlock}>
           <Text style={styles.categoryTitle}>Filter op categorie</Text>
           <View style={styles.pillWrap}>
-            {CATEGORIES.map(cat => {
-              const active = selectedCategories.includes(cat);
+            {CATEGORY_OPTIONS.map(cat => {
+              const active = selectedCategories.includes(cat.key);
               const toggle = () =>
                 setSelectedCategories(prev =>
-                  prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat],
+                  prev.includes(cat.key) ? prev.filter(c => c !== cat.key) : [...prev, cat.key],
                 );
               return (
-                <TouchableOpacity key={cat} activeOpacity={0.85} onPress={toggle} style={[styles.pill, active && styles.pillActive]}>
-                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{cat}</Text>
+                <TouchableOpacity key={cat.key} activeOpacity={0.85} onPress={toggle} style={[styles.pill, active && styles.pillActive]}>
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{cat.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -124,8 +191,12 @@ export default function FiltersPage() {
         </View>
 
         <View style={styles.buttonWrapper}>
-          <TouchableOpacity activeOpacity={0.85} style={styles.saveButton} onPress={() => router.replace('/(tabs)')}>
-            <Text style={styles.saveButtonText}>Opslaan</Text>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[styles.saveButton, (saving || loadingFilters) && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving || loadingFilters}>
+            <Text style={styles.saveButtonText}>{saving ? 'Opslaan...' : 'Opslaan'}</Text>
             <SaveIconSvg width={18} height={18} />
           </TouchableOpacity>
         </View>
@@ -157,6 +228,21 @@ const styles = StyleSheet.create({
   },
   sectionSpacing: {
     height: 18,
+  },
+  messageBox: {
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  statusText: {
+    color: '#0a7a0a',
+    fontSize: 13,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#d11',
+    fontSize: 13,
+    textAlign: 'center',
   },
   sliderBlock: {
     marginBottom: 32,

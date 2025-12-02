@@ -40,6 +40,19 @@ export interface UserModel {
   sector?: string;
 }
 
+export interface UserInterestsInput {
+  education?: boolean;
+  ict?: boolean;
+  investing?: boolean;
+  marketing?: boolean;
+  media?: boolean;
+  production?: boolean;
+  technology?: boolean;
+  distance_km?: number;
+  max_distance_km?: number;
+  [key: string]: boolean | number | undefined;
+}
+
 const REQUEST_TIMEOUT_MS = 12000;
 
 // Fetch helper met abort/timeout zodat we duidelijke feedback geven ipv oneindig wachten.
@@ -85,6 +98,16 @@ const normalizeNetworkError = (err: any) => {
   return message || "Network error";
 };
 
+const authHeaders = (token: string) => {
+  if (!token) {
+    throw new Error("Geen sessie gevonden. Log opnieuw in.");
+  }
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+};
+
 export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
   try {
     const res = await fetchWithTimeout(`${BASE_URL}/auth/login`, {
@@ -97,6 +120,9 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
     if (!res.ok) {
       if (res.status === 401) {
         throw new Error("Account niet gevonden of wachtwoord onjuist");
+      }
+       if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
       }
       throw new Error(await parseErrorMessage(res));
     }
@@ -116,9 +142,65 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
       throw new Error(await parseErrorMessage(res));
     }
     return await res.json();
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function getUserInterests(token: string): Promise<UserInterestsInput> {
+  try {
+    const res = await fetchWithTimeout(`${BASE_URL}/users/me/interests`, {
+      method: "GET",
+      headers: authHeaders(token),
+    });
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    return await res.json();
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function updateUserInterests(token: string, payload: UserInterestsInput): Promise<UserInterestsInput> {
+  try {
+    const sanitizedPayload: UserInterestsInput = {};
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined) {
+        sanitizedPayload[key] = value;
+      }
+    });
+    const res = await fetchWithTimeout(`${BASE_URL}/users/me/interests`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify(sanitizedPayload),
+    });
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    // Sommige backends geven 204 No Content terug op een geslaagde update.
+    if (res.status === 204) {
+      return sanitizedPayload;
+    }
+    const text = await res.text();
+    if (!text) return sanitizedPayload;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return sanitizedPayload;
+    }
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
