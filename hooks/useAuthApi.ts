@@ -248,13 +248,16 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
       },
     );
     if (!res.ok) {
+      const errorMsg = await parseErrorMessage(res);
+      
       if (res.status === 401) {
-        throw new Error("Account niet gevonden of wachtwoord onjuist");
+        // Toon de echte backend foutmelding bij 401 voor betere debugging
+        throw new Error(errorMsg || "Account niet gevonden of wachtwoord onjuist");
       }
       if (res.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
       }
-      throw new Error(await parseErrorMessage(res));
+      throw new Error(errorMsg);
     }
     const data = await res.json();
     return normalizeTokenResponse(data);
@@ -265,18 +268,15 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
 
 export async function registerApi(payload: RegisterPayload): Promise<UserModel> {
   try {
-    // Stuur alleen ingevulde velden mee; laat keycloak_id weg als die niet is meegegeven om duplicate key issues te voorkomen.
+    // Stuur alleen ingevulde velden mee; laat keycloak_id weg zodat de backend deze zelf kan genereren
     const requestBody: Partial<RegisterPayload> = {};
     Object.entries(payload).forEach(([key, value]) => {
-      if (value !== undefined && value !== "") {
+      // Skip keycloak_id - de backend genereert deze na Keycloak registratie
+      if (key !== 'keycloak_id' && value !== undefined && value !== "") {
         // @ts-ignore - dynamisch samenstellen
         requestBody[key] = value;
       }
     });
-    if (!requestBody.keycloak_id) {
-      // Geef elke registratie een unieke keycloak_id zodat de DB-constraint niet botst op lege/duplicaat waarden.
-      requestBody.keycloak_id = `app-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
-    }
     const res = await requestWithFallback(
       ["/api/users/register", "/users/register"],
       {
@@ -289,9 +289,18 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
     );
     if (!res.ok) {
       const msg = await parseErrorMessage(res);
-      if (msg.toLowerCase().includes("duplicate key") || msg.toLowerCase().includes("keycloak")) {
-        throw new Error("Account bestaat al (keycloak-id in gebruik). Probeer in te loggen.");
+      const lowerMsg = msg.toLowerCase();
+      
+      // Specifieke foutmeldingen voor verschillende situaties
+      if (lowerMsg.includes("duplicate") && lowerMsg.includes("email")) {
+        throw new Error("Dit e-mailadres is al geregistreerd. Probeer in te loggen of gebruik 'Wachtwoord vergeten'.");
       }
+      
+      if (lowerMsg.includes("duplicate") && lowerMsg.includes("keycloak")) {
+        throw new Error("Er is een probleem met de registratie. Probeer opnieuw of neem contact op met support. (Backend database issue)");
+      }
+      
+      // Voor andere fouten, toon de originele backend melding
       throw new Error(msg);
     }
     return await res.json();

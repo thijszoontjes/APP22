@@ -1,8 +1,8 @@
+import { saveAuthTokens } from '@/hooks/authStorage';
+import { loginApi, registerApi } from '@/hooks/useAuthApi';
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { registerApi, loginApi } from '@/hooks/useAuthApi';
-import { saveAuthTokens } from '@/hooks/authStorage';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -95,10 +95,11 @@ export default function RegisterScreen() {
         phone_number: normalizedPhone,
         password: normalizedPassword,
       });
-      // Auto-inloggen voor direct gebruik na registreren (met korte retry zodat Keycloak sync tijd heeft)
+      // Auto-inloggen voor direct gebruik na registreren (met retry zodat Keycloak sync tijd heeft)
       let tokenReceived = false;
       let lastError: any = null;
-      for (let attempt = 0; attempt < 3 && !tokenReceived; attempt += 1) {
+      // Probeer 5x met langere tussenpozen (totaal ~6 seconden)
+      for (let attempt = 0; attempt < 5 && !tokenReceived; attempt += 1) {
         try {
           const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
           if (token?.access_token && token?.refresh_token) {
@@ -109,14 +110,15 @@ export default function RegisterScreen() {
           }
         } catch (err: any) {
           lastError = err;
-          if (attempt < 2) {
-            await sleep(600); // wacht kort; backend kan nog aan het aanmaken zijn
+          if (attempt < 4) {
+            // Wacht langer bij elke poging: 800ms, 1200ms, 1600ms, 2000ms
+            await sleep(800 + (attempt * 400));
           }
         }
       }
       if (!tokenReceived) {
         // Registratie is wel gelukt; stuur gebruiker naar login met melding
-        setApiError('Account aangemaakt. Inloggen lukt nog niet; probeer zo opnieuw in te loggen.');
+        setApiError('Account aangemaakt! Je kunt nu inloggen.');
         router.replace('/login');
       }
     } catch (err: any) {
