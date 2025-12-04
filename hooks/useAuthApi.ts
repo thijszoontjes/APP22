@@ -1,4 +1,4 @@
-import { BASE_URLS } from "../constants/api";
+import { BASE_URLS, CHAT_BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface LoginRequest {
@@ -56,6 +56,19 @@ export interface UserInterestsInput {
   [key: string]: boolean | number | undefined;
 }
 
+export interface SendMessageRequest {
+  content: string;
+  receiver_id: number;
+}
+
+export interface ChatMessage {
+  content: string;
+  created_at: string;
+  id: number;
+  receiver_id: number;
+  sender_id: number;
+}
+
 const REQUEST_TIMEOUT_MS = 6000;
 const RETRY_STATUSES = new Set([404, 502, 503, 504]);
 
@@ -107,9 +120,9 @@ const normalizeNetworkError = (err: any) => {
   return message || "Network error";
 };
 
-const requestWithFallback = async (paths: string[], init: RequestInit): Promise<Response> => {
+const requestWithFallback = async (paths: string[], init: RequestInit, bases: string[] = BASE_URLS): Promise<Response> => {
   let lastError: Error | null = null;
-  const targets = paths.flatMap((path) => BASE_URLS.map((base) => ({
+  const targets = paths.flatMap((path) => bases.map((base) => ({
     base,
     url: `${base}${path}`,
   })));
@@ -162,7 +175,7 @@ const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
   }
 };
 
-const withAutoRefresh = async (paths: string[], options: RequestInit = {}): Promise<Response> => {
+const withAutoRefresh = async (paths: string[], options: RequestInit = {}, bases: string[] = BASE_URLS): Promise<Response> => {
   const { accessToken, refreshToken } = await getAuthTokens();
   if (!accessToken || !refreshToken) {
     throw new Error("Geen sessie gevonden. Log opnieuw in.");
@@ -178,7 +191,7 @@ const withAutoRefresh = async (paths: string[], options: RequestInit = {}): Prom
     requestWithFallback(paths, {
       ...options,
       headers: { ...headersWithAuth, Authorization: `Bearer ${token}` },
-    });
+    }, bases);
 
   let res = await attempt(accessToken);
 
@@ -317,6 +330,133 @@ export async function updateUserInterests(payload: UserInterestsInput): Promise<
     } catch {
       return sanitizedPayload;
     }
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function getCurrentUserProfile(): Promise<UserModel> {
+  try {
+    const res = await withAutoRefresh(
+      ["/api/users/me", "/users/me"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) {
+      throw new Error("Kon je profiel niet ophalen (lege respons).");
+    }
+    return JSON.parse(text);
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function getUserById(userId: number): Promise<UserModel> {
+  if (!Number.isFinite(userId)) {
+    throw new Error("Ongeldig gebruikers-id.");
+  }
+  try {
+    const res = await withAutoRefresh(
+      [`/api/users/${userId}`, `/users/${userId}`],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) {
+      throw new Error("Gebruiker gevonden maar respons was leeg.");
+    }
+    return JSON.parse(text);
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function fetchConversation(withUserId: number): Promise<ChatMessage[]> {
+  if (!Number.isFinite(withUserId)) {
+    throw new Error("Ongeldig gebruikers-id om mee te chatten.");
+  }
+  try {
+    const res = await withAutoRefresh(
+      [`/chat/messages?with=${encodeURIComponent(withUserId)}`],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+      CHAT_BASE_URLS,
+    );
+    if (!res.ok) {
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) return [];
+    return JSON.parse(text);
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function fetchAllMyMessages(): Promise<ChatMessage[]> {
+  try {
+    const res = await withAutoRefresh(
+      ["/chat/messages"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+      CHAT_BASE_URLS,
+    );
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 400) {
+        // Sommige implementaties vereisen `with`; in dat geval tonen we een lege lijst
+        return [];
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) return [];
+    return JSON.parse(text);
+  } catch (err: any) {
+    // Als de server een 400 terugstuurt omdat `with` ontbreekt, behandel dat als "geen berichten".
+    const message = err?.message?.toLowerCase?.() || "";
+    if (message.includes("400") || message.includes("with")) {
+      return [];
+    }
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function sendChatMessage(payload: SendMessageRequest): Promise<ChatMessage> {
+  if (!payload?.content || !payload.receiver_id) {
+    throw new Error("Bericht en ontvanger zijn verplicht.");
+  }
+  try {
+    const res = await withAutoRefresh(
+      ["/chat/send"],
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      CHAT_BASE_URLS,
+    );
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res));
+    }
+    return await res.json();
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }

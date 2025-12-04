@@ -4,6 +4,10 @@ const DEFAULT_BASE_URL = "https://userservice-userservice-projectgroup1-prod.app
 const SECONDARY_BASE_URL = "https://userservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 const SECONDARY_BASE_URL_HTTP = "http://userservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 
+const DEFAULT_CHAT_BASE_URL = "https://chatservice-chatservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_CHAT_BASE_URL = "https://chatservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_CHAT_BASE_URL_HTTP = "http://chatservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+
 const stripTrailingSlash = (url: string) => url.replace(/\/+$/, "");
 
 // Probeer eerst de env-var, daarna de bekende routes (oude + nieuwe DNS zonder dubbele service-naam).
@@ -24,3 +28,18 @@ export const BASE_URLS = Array.from(
 
 // Eerste waarde blijft het "huidige" BASE_URL voor code die een string verwacht.
 export const BASE_URL = BASE_URLS[0] || DEFAULT_BASE_URL;
+
+export const CHAT_BASE_URLS = Array.from(
+  new Set(
+    [
+      process.env.EXPO_PUBLIC_CHAT_URL,
+      SECONDARY_CHAT_BASE_URL,
+      DEFAULT_CHAT_BASE_URL,
+      SECONDARY_CHAT_BASE_URL_HTTP,
+    ]
+      .filter(isString)
+      .map((url) => stripTrailingSlash(url)),
+  ),
+);
+
+export const CHAT_BASE_URL = CHAT_BASE_URLS[0] || DEFAULT_CHAT_BASE_URL;

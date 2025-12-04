@@ -1,11 +1,13 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import AppHeader from '@/components/app-header';
+import { fetchConversation, sendChatMessage, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,7 +21,7 @@ const LIGHT_ORANGE = '#FCDCBE';
 const SOFT_GRAY = '#E7E7E7';
 
 type ChatMessage = {
-  id: string;
+  id: string | number;
   text: string;
   from: 'me' | 'them';
   createdAt: Date;
@@ -28,9 +30,14 @@ type ChatMessage = {
 export default function DMChatPage() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { userName = 'Maarten Kuip' } = useLocalSearchParams();
+  const { userName = 'Maarten Kuip', userId: userIdParam } = useLocalSearchParams<{ userName?: string; userId?: string }>();
+  const userId = useMemo(() => Number(userIdParam), [userIdParam]);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
   const scrollRef = useRef<ScrollView>(null);
 
   const dayLabel = useMemo(() => {
@@ -47,25 +54,64 @@ export default function DMChatPage() {
     scrollToBottom(true);
   }, [messages.length]);
 
+  useEffect(() => {
+    loadConversation();
+  }, [userId]);
+
   const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollToEnd({ animated });
     });
   };
 
-  const handleSend = () => {
+  const loadConversation = async () => {
+    if (!Number.isFinite(userId)) {
+      setError('Geen geldig gebruikers-id meegegeven voor deze chat.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetchConversation(userId);
+      const parsed = res
+        .map((msg: ApiChatMessage) => mapToUiMessage(msg, userId))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      setMessages(parsed);
+    } catch (err: any) {
+      setError(err?.message || 'Kon gesprek niet laden.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+    if (!Number.isFinite(userId)) {
+      setError('Geen ontvanger gevonden om een bericht naar te sturen.');
+      return;
+    }
+    setSending(true);
     const now = new Date();
-    const msg: ChatMessage = {
-      id: `${Date.now()}`,
-      text: trimmed,
-      from: 'me',
-      createdAt: now,
-    };
-    setMessages((prev) => [...prev, msg]);
-    setInput('');
-    scrollToBottom(true);
+    try {
+      const sent = await sendChatMessage({ receiver_id: userId, content: trimmed });
+      const uiMessage: ChatMessage = mapToUiMessage(sent, userId, 'me') || {
+        id: sent?.id || `${Date.now()}`,
+        text: trimmed,
+        from: 'me',
+        createdAt: now,
+      };
+      setMessages((prev) => [...prev, uiMessage]);
+      setInput('');
+      scrollToBottom(true);
+    } catch (err: any) {
+      setError(err?.message || 'Versturen mislukt.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -90,7 +136,22 @@ export default function DMChatPage() {
           alwaysBounceVertical={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadConversation(); }} />}
         >
+          {error ? (
+            <View style={styles.errorWrap}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadConversation} disabled={loading}>
+                <Text style={styles.retryText}>{loading ? 'Laden...' : 'Opnieuw proberen'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} />
+              <Text style={styles.loadingText}>Berichten ophalen...</Text>
+            </View>
+          ) : null}
           {dayLabel ? (
             <View style={styles.dayChip}>
               <Text style={styles.dayChipText}>{dayLabel}</Text>
@@ -121,7 +182,7 @@ export default function DMChatPage() {
               placeholderTextColor="#B4B4B4"
               multiline
             />
-            <TouchableOpacity activeOpacity={0.85} style={styles.sendButton} onPress={handleSend}>
+            <TouchableOpacity activeOpacity={0.85} style={[styles.sendButton, sending && { opacity: 0.7 }]} onPress={handleSend} disabled={sending}>
               <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} />
             </TouchableOpacity>
           </View>
@@ -146,6 +207,18 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
+function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: number, forceFrom?: 'me' | 'them'): ChatMessage {
+  const partnerId = withUserId;
+  const created = new Date(apiMessage?.created_at || Date.now());
+  const from: 'me' | 'them' = forceFrom || (apiMessage.sender_id === partnerId ? 'them' : 'me');
+  return {
+    id: apiMessage.id,
+    text: apiMessage.content || '',
+    from,
+    createdAt: Number.isNaN(created.getTime()) ? new Date() : created,
+  };
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -166,6 +239,38 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 12,
     paddingTop: 12,
+  },
+  errorWrap: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    color: '#c1121f',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  retryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: ORANGE,
+    borderRadius: 12,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  loadingWrap: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 6,
+  },
+  loadingText: {
+    color: '#1A2233',
+    fontSize: 14,
+    fontWeight: '600',
   },
   dayChip: {
     alignSelf: 'center',
