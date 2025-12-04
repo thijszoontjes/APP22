@@ -17,6 +17,8 @@ export default function RegisterScreen() {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const sanitizeInputs = () => {
     const normalizedName = name.replace(/\s+/g, ' ').trim();
     const normalizedEmail = email.replace(/\s+/g, '');
@@ -86,19 +88,35 @@ export default function RegisterScreen() {
     const last_name = rest.join(' ') || first_name;
 
     try {
-      await registerApi({
+      const createdUser = await registerApi({
         first_name,
         last_name,
         email: normalizedEmail,
         phone_number: normalizedPhone,
         password: normalizedPassword,
       });
-      // Auto-inloggen voor direct gebruik na registreren
-      const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
-      if (token?.access_token && token?.refresh_token) {
-        await saveAuthTokens(token.access_token, token.refresh_token);
-        router.replace('/(tabs)');
-      } else {
+      // Auto-inloggen voor direct gebruik na registreren (met korte retry zodat Keycloak sync tijd heeft)
+      let tokenReceived = false;
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3 && !tokenReceived; attempt += 1) {
+        try {
+          const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
+          if (token?.access_token && token?.refresh_token) {
+            await saveAuthTokens(token.access_token, token.refresh_token);
+            tokenReceived = true;
+            router.replace('/(tabs)');
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          if (attempt < 2) {
+            await sleep(600); // wacht kort; backend kan nog aan het aanmaken zijn
+          }
+        }
+      }
+      if (!tokenReceived) {
+        // Registratie is wel gelukt; stuur gebruiker naar login met melding
+        setApiError('Account aangemaakt. Inloggen lukt nog niet; probeer zo opnieuw in te loggen.');
         router.replace('/login');
       }
     } catch (err: any) {

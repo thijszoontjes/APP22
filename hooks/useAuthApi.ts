@@ -10,8 +10,11 @@ export interface TokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
-  refresh_token?: string;
+  refresh_token: string;
   refresh_expires_in?: number;
+  // Soms komen tokens camelCased terug.
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface RegisterPayload {
@@ -120,6 +123,24 @@ const normalizeNetworkError = (err: any) => {
   return message || "Network error";
 };
 
+const normalizeTokenResponse = (data: any): TokenResponse => {
+  if (!data || typeof data !== "object") {
+    throw new Error("Ongeldige login-response (lege payload).");
+  }
+  const access_token = data.access_token || data.accessToken;
+  const refresh_token = data.refresh_token || data.refreshToken;
+  if (!access_token || !refresh_token) {
+    throw new Error("Ongeldige login-response: ontbrekende tokens.");
+  }
+  return {
+    access_token,
+    refresh_token,
+    expires_in: data.expires_in ?? data.expiresIn ?? 0,
+    refresh_expires_in: data.refresh_expires_in ?? data.refreshExpiresIn ?? undefined,
+    token_type: data.token_type || data.tokenType || "Bearer",
+  };
+};
+
 const requestWithFallback = async (paths: string[], init: RequestInit, bases: string[] = BASE_URLS): Promise<Response> => {
   let lastError: Error | null = null;
   const targets = paths.flatMap((path) => bases.map((base) => ({
@@ -169,7 +190,8 @@ const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
       }
       throw new Error(await parseErrorMessage(res));
     }
-    return await res.json();
+    const data = await res.json();
+    return normalizeTokenResponse(data);
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
@@ -234,7 +256,8 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
       }
       throw new Error(await parseErrorMessage(res));
     }
-    return await res.json();
+    const data = await res.json();
+    return normalizeTokenResponse(data);
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
@@ -251,7 +274,7 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
       }
     });
     if (!requestBody.keycloak_id) {
-      // voorkom duplicate constraint op lege keycloak_id door een unieke fallback te zetten
+      // Geef elke registratie een unieke keycloak_id zodat de DB-constraint niet botst op lege/duplicaat waarden.
       requestBody.keycloak_id = `app-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     }
     const res = await requestWithFallback(
@@ -265,7 +288,11 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
       },
     );
     if (!res.ok) {
-      throw new Error(await parseErrorMessage(res));
+      const msg = await parseErrorMessage(res);
+      if (msg.toLowerCase().includes("duplicate key") || msg.toLowerCase().includes("keycloak")) {
+        throw new Error("Account bestaat al (keycloak-id in gebruik). Probeer in te loggen.");
+      }
+      throw new Error(msg);
     }
     return await res.json();
   } catch (err: any) {
