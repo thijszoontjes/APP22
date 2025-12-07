@@ -1,26 +1,52 @@
-import AppHeader from '@/components/app-header';
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
+import AppHeader from '@/components/app-header';
 import { getPitches, subscribe } from '@/constants/pitch-store';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { TabBar, TabView } from 'react-native-tab-view';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { TabBar, TabView } from 'react-native-tab-view';
 
 const tabLabels = ['Eigen video', 'Gelikte video', 'Favorieten'];
 const ORANGE = '#FF8700';
 
+// Video Thumbnail Component - Only loads when visible
+function VideoThumbnail({ uri, onPress, isVisible }: { uri: string; onPress: () => void; isVisible: boolean }) {
+  const player = useVideoPlayer(isVisible ? uri : '');
+
+  return (
+    <TouchableOpacity 
+      style={styles.videoThumbnailContainer}
+      activeOpacity={0.8}
+      onPress={onPress}>
+      {isVisible ? (
+        <VideoView
+          style={styles.videoThumbnail}
+          player={player}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : (
+        <View style={[styles.videoThumbnail, { backgroundColor: '#e0e0e0' }]} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
+  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
   const [routes] = useState([
     { key: 'first', title: tabLabels[0] },
     { key: 'second', title: tabLabels[1] },
     { key: 'third', title: tabLabels[2] },
   ]);
   const [pitches, setPitches] = useState(getPitches());
-  const [activeUri, setActiveUri] = useState<string | null>(pitches[0]?.uri ?? null);
-  const player = useVideoPlayer(activeUri ? { uri: activeUri } : null);
+  const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
+
+  // Separate player for modal - only created when video is selected
+  const modalPlayer = useVideoPlayer(selectedVideoUri || '');
 
   useEffect(() => {
     const unsubscribe = subscribe(() => {
@@ -29,15 +55,55 @@ export default function ProfilePage() {
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    setActiveUri(getPitches()[0]?.uri ?? null);
-  }, [pitches]);
-
-  useEffect(() => {
-    if (player && activeUri) {
-      player.replaceAsync({ uri: activeUri }).catch(err => console.warn('Video replace failed', err));
+  const handleScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const contentHeight = event.nativeEvent.contentSize.height;
+    const layoutHeight = event.nativeEvent.layoutMeasurement.height;
+    
+    // Calculate which videos should be visible (roughly 2 rows above/below viewport)
+    const visibleIndicesSet = new Set<number>();
+    const itemHeight = 140; // Approximate height of video thumbnail + spacing
+    const rowSize = 3; // 3 columns
+    
+    const startIndex = Math.max(0, Math.floor((offsetY - 280) / itemHeight) * rowSize);
+    const endIndex = Math.min(pitches.length - 1, Math.ceil((offsetY + layoutHeight + 280) / itemHeight) * rowSize);
+    
+    for (let i = startIndex; i <= endIndex; i++) {
+      visibleIndicesSet.add(i);
     }
-  }, [activeUri, player]);
+    
+    setVisibleIndices(visibleIndicesSet);
+  }, [pitches.length]);
+
+  const renderOwnVideos = () => {
+    if (pitches.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.tabContentText}>Nog geen video's opgeslagen.</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.videosGridContainer}
+        style={styles.videosScroll}
+        onScroll={handleScroll}
+        scrollEventThrottle={200}>
+        <View style={styles.videosGrid}>
+          {pitches.map((pitch, i) => (
+            <VideoThumbnail 
+              key={i} 
+              uri={pitch.uri}
+              onPress={() => setSelectedVideoUri(pitch.uri)}
+              isVisible={visibleIndices.has(i)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -68,23 +134,7 @@ export default function ProfilePage() {
           if (route.key === 'first') {
             return (
               <View style={styles.tabContentContainer}>
-                {activeUri ? (
-                  <View style={styles.videoCard}>
-                    {player ? (
-                      <VideoView
-                        style={styles.videoPlayer}
-                        player={player}
-                        contentFit="cover"
-                        allowsFullscreen
-                        allowsPictureInPicture={false}
-                        nativeControls
-                      />
-                    ) : null}
-                    <Text style={styles.videoLabel}>Laatste pitch</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.tabContentText}>Nog geen video’s opgeslagen.</Text>
-                )}
+{renderOwnVideos()}
               </View>
             );
           }
@@ -115,6 +165,28 @@ export default function ProfilePage() {
           />
         )}
       />
+      <Modal 
+        visible={selectedVideoUri !== null} 
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setSelectedVideoUri(null)}>
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => setSelectedVideoUri(null)}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          {selectedVideoUri && (
+            <VideoView
+              style={styles.fullscreenVideo}
+              player={modalPlayer}
+              contentFit="contain"
+              fullscreenOptions={{ enterFullscreenButtonPressed: true }}
+              nativeControls
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -191,29 +263,68 @@ const styles = StyleSheet.create({
   tabContentContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 80,
+    flex: 1,
     paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   tabContentText: {
     fontSize: 18,
     color: '#1A2233',
     fontWeight: '600',
   },
-  videoCard: {
-    width: '100%',
-    maxWidth: 360,
+  emptyContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videosScroll: {
+    flex: 1,
+  },
+  videosGridContainer: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  videosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
     gap: 8,
   },
-  videoPlayer: {
+  videoThumbnailContainer: {
+    width: '28%',
+    aspectRatio: 2 / 3,
+  },
+  videoThumbnail: {
     width: '100%',
-    aspectRatio: 9 / 16,
-    borderRadius: 16,
+    height: '100%',
+    borderRadius: 12,
     backgroundColor: '#000',
   },
-  videoLabel: {
-    fontSize: 16,
-    color: '#1A2233',
-    fontWeight: '700',
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });
