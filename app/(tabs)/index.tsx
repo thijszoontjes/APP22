@@ -8,16 +8,27 @@ import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
 import AppHeader from '@/components/app-header';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
 
 export default function HomePage() {
   const router = useRouter();
   const [liked, setLiked] = useState(false);
   const [hearted, setHearted] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(false);
   const heartScale = useRef(new Animated.Value(1)).current;
   const likeScale = useRef(new Animated.Value(1)).current;
   const likeTranslateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loadHintState = async () => {
+      const seen = await getHomeHintSeen();
+      setShowScrollHint(!seen);
+    };
+    loadHintState();
+  }, []);
 
   const handleHeartPress = () => {
     Animated.sequence([
@@ -68,6 +79,16 @@ export default function HomePage() {
           style={styles.image}
           imageStyle={styles.imageStyle}
           resizeMode="cover">
+          <TouchableOpacity style={styles.logoutTest} activeOpacity={0.85} onPress={async () => { await clearAuthToken(); router.replace('/login'); }}>
+            <Text style={styles.logoutText}>Log uit (test)</Text>
+          </TouchableOpacity>
+          {showScrollHint && (
+            <TouchableOpacity style={styles.hintOverlay} activeOpacity={0.85} onPress={() => { setShowScrollHint(false); setHomeHintSeen(); }}>
+              <View style={styles.hintContent}>
+                <Text style={styles.hintText}>scrol verticaal om nieuwe videos te ontdekken.</Text>
+              </View>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8} onPress={handleHeartPress}>
             <Animated.View style={{ transform: [{ scale: heartScale }] }}>
               {hearted ? <HeartTrueIconSvg width={56} height={56} /> : <HeartIconSvg width={56} height={56} />}
@@ -113,6 +134,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     justifyContent: 'space-between',
+    overflow: 'hidden', // voorkom verticale scroll/bounce
   },
   headerIcon: {
     width: 46,
@@ -206,5 +228,38 @@ const styles = StyleSheet.create({
   },
   chatButton: {
     marginTop: 10,
+  },
+  logoutTest: {
+    position: 'absolute',
+    top: 24,
+    left: 18,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  logoutText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  hintOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  hintContent: {
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  hintText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

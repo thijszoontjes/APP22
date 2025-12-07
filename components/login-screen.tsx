@@ -1,15 +1,68 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { loginApi } from '@/hooks/useAuthApi';
+import { saveAuthTokens } from '@/hooks/authStorage';
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const sanitizeInputs = () => {
+    const normalizedEmail = email.replace(/\s+/g, '');
+    const normalizedPassword = password.trim();
+
+    if (normalizedEmail !== email) setEmail(normalizedEmail);
+    if (normalizedPassword !== password) setPassword(normalizedPassword);
+
+    return { normalizedEmail, normalizedPassword };
+  };
+
+  const validate = (emailToCheck: string, passwordToCheck: string) => {
+    const filled = !!emailToCheck && !!passwordToCheck;
+    const emailHasAt = emailToCheck.includes('@');
+    if (!filled) {
+      setValidationError('Niet alle velden zijn ingevuld');
+      return false;
+    }
+    if (!emailHasAt) {
+      setValidationError('Voer een geldig e-mailadres in');
+      return false;
+    }
+    setValidationError('');
+    return true;
+  };
+
+  const handleLogin = async () => {
+    setApiError('');
+    setValidationError('');
+    const { normalizedEmail, normalizedPassword } = sanitizeInputs();
+    if (!validate(normalizedEmail, normalizedPassword)) return;
+    setLoading(true);
+    try {
+      const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
+      if (!token?.access_token || !token?.refresh_token) {
+        throw new Error('Ongeldige login-response: ontbrekende tokens');
+      }
+      await saveAuthTokens(token.access_token, token.refresh_token);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setApiError(err?.message || 'Inloggen mislukt');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
+      keyboardVerticalOffset={0}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -26,13 +79,21 @@ export default function LoginScreen() {
           <Text style={styles.title}>Inloggen</Text>
           <Text style={styles.label}>E-mail</Text>
           <View style={styles.inputBox}>
-            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+            <TextInput
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
           </View>
           <Text style={styles.label}>Wachtwoord</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
               secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
             />
             <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
               <Image
@@ -42,16 +103,25 @@ export default function LoginScreen() {
               />
             </TouchableOpacity>
           </View>
+          {!!validationError && <Text style={styles.errorText}>{validationError}</Text>}
+          {!!apiError && <Text style={styles.errorText}>{apiError}</Text>}
           <Link href="/forgot-password" asChild>
             <TouchableOpacity>
               <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
             </TouchableOpacity>
           </Link>
-          <Link href="/(tabs)" asChild>
-            <TouchableOpacity style={styles.loginBtn}>
-              <Text style={styles.loginBtnText}>Inloggen</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            style={[styles.loginBtn, loading && { opacity: 0.75 }]}
+            disabled={loading}
+            onPress={handleLogin}>
+            <Text style={styles.loginBtnText}>{loading ? 'Inloggen...' : 'Inloggen'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.loginBtn, styles.placeholderBtn]}
+            onPress={() => router.replace('/(tabs)')}
+            accessibilityHint="Placeholder om zonder login naar de app te gaan">
+            <Text style={styles.loginBtnText}>Sla login over (placeholder)</Text>
+          </TouchableOpacity>
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
             <Link href="/register" asChild>
@@ -133,6 +203,13 @@ const styles = StyleSheet.create({
     height: 22,
     tintColor: '#b4b4b4',
   },
+  errorText: {
+    color: '#d11',
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
   forgot: {
     color: '#6080FF',
     fontSize: 15,
@@ -153,6 +230,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
+  },
+  placeholderBtn: {
+    backgroundColor: '#1A2233',
+    marginTop: -10,
   },
   registerRow: {
     flexDirection: 'row',
