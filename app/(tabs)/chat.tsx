@@ -1,8 +1,9 @@
 import AppHeader from '@/components/app-header';
-import { fetchAllMyMessages, getCurrentUserProfile, getUserById, type ChatMessage, type UserModel } from '@/hooks/useAuthApi';
+import { fetchConversation, getUserById } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 const ORANGE = '#FF8700';
 
@@ -16,21 +17,108 @@ type ChatListItem = {
   initials?: string;
 };
 
+type StoredChatRef = {
+  userId: number;
+  name?: string;
+};
+
+const LAST_CHATS_KEY = 'last_chats_v1';
+
 export default function ChatPage() {
   const router = useRouter();
   const [chats, setChats] = useState<ChatListItem[]>([]);
+  const [manualId, setManualId] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const loadChats = useCallback(async () => {
-    // De backend vereist een `with` query parameter om een gesprek op te halen,
-    // er is geen endpoint voor een complete chatlijst. Laat daarom een vriendelijke uitleg zien.
-    setLoading(false);
-    setRefreshing(false);
-    setChats([]);
-    setError('Open een chat via een profiel of zoekresultaat. De API ondersteunt geen algemene chatlijst zonder `with` parameter.');
+  const readStoredChats = useCallback(async (): Promise<StoredChatRef[]> => {
+    try {
+      const raw = await SecureStore.getItemAsync(LAST_CHATS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item: any) => ({
+          userId: Number(item?.userId),
+          name: typeof item?.name === 'string' ? item.name : undefined,
+        }))
+        .filter((item: StoredChatRef) => Number.isFinite(item.userId));
+    } catch {
+      return [];
+    }
   }, []);
+
+  const upsertStoredChat = useCallback(async (contact: StoredChatRef) => {
+    const current = await readStoredChats();
+    const filtered = current.filter(c => c.userId !== contact.userId);
+    const next = [{ userId: contact.userId, name: contact.name }, ...filtered].slice(0, 10);
+    try {
+      await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(next));
+    } catch {
+      // best-effort
+    }
+  }, [readStoredChats]);
+
+  const fetchPreview = useCallback(async (contact: StoredChatRef): Promise<ChatListItem | null> => {
+    try {
+      const [user, messages] = await Promise.allSettled([
+        getUserById(contact.userId),
+        fetchConversation(contact.userId),
+      ]);
+
+      let name = contact.name || `Gebruiker #${contact.userId}`;
+      if (user.status === 'fulfilled') {
+        const maybeName = [user.value.first_name, user.value.last_name].filter(Boolean).join(' ').trim();
+        if (maybeName) name = maybeName;
+      }
+
+      const list = messages.status === 'fulfilled' && Array.isArray(messages.value) ? messages.value : [];
+      const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const last = sorted[sorted.length - 1];
+
+      return {
+        id: contact.userId,
+        name,
+        message: last?.content || 'Nog geen berichten',
+        time: formatTimeLabel(last?.created_at),
+        lastAt: last ? new Date(last.created_at).getTime() : 0,
+        initials: deriveInitials(name),
+      };
+    } catch {
+      return {
+        id: contact.userId,
+        name: contact.name || `Gebruiker #${contact.userId}`,
+        message: 'Nog geen berichten',
+        time: '',
+        lastAt: 0,
+        initials: deriveInitials(contact.name || `Gebruiker #${contact.userId}`),
+      };
+    }
+  }, []);
+
+  const loadChats = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const saved = await readStoredChats();
+      if (!saved.length) {
+        setChats([]);
+        setError('We hebben nog geen video-feed; gebruik het ID-veld bovenaan om een chat te starten.');
+      } else {
+        const previews = await Promise.all(saved.map(fetchPreview));
+        const filtered = previews.filter(Boolean) as ChatListItem[];
+        filtered.sort((a, b) => b.lastAt - a.lastAt);
+        setChats(filtered);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Kon chats niet laden.');
+      setChats([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [readStoredChats, fetchPreview]);
 
   useEffect(() => {
     loadChats();
@@ -43,12 +131,43 @@ export default function ChatPage() {
     });
   };
 
+  const handleStartManual = async () => {
+    const idNum = Number(manualId);
+    if (!Number.isFinite(idNum)) {
+      setError('Vul een geldig gebruikers-ID in.');
+      return;
+    }
+    await upsertStoredChat({ userId: idNum });
+    setError('');
+    await loadChats();
+    router.push({
+      pathname: '/dm',
+      params: { userId: idNum.toString(), userName: `Gebruiker #${idNum}` },
+    });
+  };
+
   const emptyState = useMemo(() => !loading && chats.length === 0, [loading, chats.length]);
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <AppHeader title="Chat" />
+        <View style={styles.manualBar}>
+          <View style={styles.manualInputs}>
+            <TextInput
+              style={styles.manualIdInput}
+              value={manualId}
+              onChangeText={setManualId}
+              placeholder="Gebruikers-ID"
+              placeholderTextColor="#8a8a8a"
+              keyboardType="numeric"
+            />
+          </View>
+          <TouchableOpacity style={styles.manualButton} onPress={handleStartManual} activeOpacity={0.85}>
+            <Text style={styles.manualButtonText}>Open chat</Text>
+          </TouchableOpacity>
+          <Text style={styles.infoText}>Geen video-feed beschikbaar; gebruik tijdelijk het ID van een gebruiker om een chat te starten.</Text>
+        </View>
         <ScrollView
           style={styles.list}
           contentContainerStyle={styles.listContent}
@@ -70,7 +189,7 @@ export default function ChatPage() {
           {emptyState ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>Nog geen gesprekken</Text>
-              <Text style={styles.emptyText}>Begin een chat vanuit een profiel om hier gesprekken te zien.</Text>
+              <Text style={styles.emptyText}>Start een chat met het ID-veld bovenaan om gesprekken te openen.</Text>
             </View>
           ) : null}
           {chats.map(chat => (
@@ -104,26 +223,6 @@ export default function ChatPage() {
     </View>
   );
 }
-
-const groupMessagesByUser = (messages: ChatMessage[], myId?: number) => {
-  const grouped = new Map<number, ChatMessage[]>();
-  const normalizeId = (value: unknown) => {
-    const numeric = typeof value === "string" ? Number(value) : value;
-    return Number.isFinite(numeric as number) ? (numeric as number) : null;
-  };
-
-  messages.forEach((msg) => {
-    const senderId = normalizeId(msg.sender_id);
-    const receiverId = normalizeId(msg.receiver_id);
-    const me = normalizeId(myId);
-    const partnerId = me && senderId === me ? receiverId : senderId || receiverId;
-    if (!partnerId) return;
-    const list = grouped.get(partnerId) || [];
-    list.push(msg);
-    grouped.set(partnerId, list);
-  });
-  return grouped;
-};
 
 const deriveInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -180,6 +279,43 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  manualBar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  manualInputs: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  manualIdInput: {
+    flex: 0.6,
+    borderWidth: 1,
+    borderColor: '#D7D7D7',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1A2233',
+  },
+  manualButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: ORANGE,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  manualButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  infoText: {
+    color: '#5c5c5c',
+    fontSize: 12,
+    paddingHorizontal: 2,
   },
   emptyWrap: {
     paddingHorizontal: 24,

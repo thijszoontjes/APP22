@@ -75,7 +75,8 @@ export default function DMChatPage() {
     setLoading(true);
     try {
       const res = await fetchConversation(userId);
-      const parsed = res
+      const list = Array.isArray(res) ? res : [];
+      const parsed = list
         .map((msg: ApiChatMessage) => mapToUiMessage(msg, userId))
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       setMessages(parsed);
