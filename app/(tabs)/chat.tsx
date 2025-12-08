@@ -43,13 +43,16 @@ export default function ChatPage() {
           userId: Number(item?.userId),
           name: typeof item?.name === 'string' ? item.name : undefined,
         }))
-        .filter((item: StoredChatRef) => Number.isFinite(item.userId));
+        .filter((item: StoredChatRef) => Number.isFinite(item.userId) && item.userId > 0);
     } catch {
       return [];
     }
   }, []);
 
   const upsertStoredChat = useCallback(async (contact: StoredChatRef) => {
+    if (!Number.isFinite(contact.userId) || contact.userId <= 0) {
+      return;
+    }
     const current = await readStoredChats();
     const filtered = current.filter(c => c.userId !== contact.userId);
     const next = [{ userId: contact.userId, name: contact.name }, ...filtered].slice(0, 10);
@@ -61,6 +64,9 @@ export default function ChatPage() {
   }, [readStoredChats]);
 
   const fetchPreview = useCallback(async (contact: StoredChatRef): Promise<ChatListItem | null> => {
+    if (!Number.isFinite(contact.userId) || contact.userId <= 0) {
+      return null;
+    }
     try {
       const [user, messages] = await Promise.allSettled([
         getUserById(contact.userId),
@@ -132,8 +138,8 @@ export default function ChatPage() {
   };
 
   const handleStartManual = async () => {
-    const idNum = Number(manualId);
-    if (!Number.isFinite(idNum)) {
+    const idNum = Math.trunc(Number(manualId));
+    if (!Number.isFinite(idNum) || idNum <= 0) {
       setError('Vul een geldig gebruikers-ID in.');
       return;
     }

@@ -1,6 +1,7 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { getPitches, subscribe } from '@/constants/pitch-store';
+import { getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -44,6 +45,9 @@ export default function ProfilePage() {
   ]);
   const [pitches, setPitches] = useState(getPitches());
   const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
+  const [profile, setProfile] = useState<UserModel | null>(null);
+  const [profileError, setProfileError] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Separate player for modal - only created when video is selected
   const modalPlayer = useVideoPlayer(selectedVideoUri || '');
@@ -53,6 +57,30 @@ export default function ProfilePage() {
       setPitches(getPitches());
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setProfileLoading(true);
+      try {
+        const data = await getCurrentUserProfile();
+        setProfile(data);
+        setProfileError('');
+      } catch (err: any) {
+        setProfile(null);
+        const msg = (err?.message || '').toLowerCase();
+        if (msg.includes('invalid id')) {
+          setProfileError('Kon profiel niet laden (ongeldig id). Log opnieuw in of probeer later.');
+        } else if (msg.includes('sessie') || msg.includes('log opnieuw')) {
+          setProfileError('Niet ingelogd. Log opnieuw in om je profiel te zien.');
+        } else {
+          setProfileError('Kon profiel niet laden. Gebruik placeholder-gegevens.');
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    loadProfile();
   }, []);
 
   const handleScroll = useCallback((event: any) => {
@@ -119,9 +147,22 @@ export default function ProfilePage() {
         <View style={styles.profilePicCircle} />
       </View>
       <View style={styles.profileInfoContainer}>
-        <Text style={styles.profileName}>Anna Vermeer</Text>
-        <Text style={styles.profileDetails}>+31 465436443</Text>
-        <Text style={styles.profileDetails}>Anna01@gmail.com</Text>
+        <Text style={styles.profileName}>
+          {profile?.first_name || profile?.last_name
+            ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
+            : 'Anna Vermeer'}
+        </Text>
+        <Text style={styles.profileDetails}>
+          {profile?.phone_number || '+31 465436443'}
+        </Text>
+        <Text style={styles.profileDetails}>
+          {profile?.email || 'Anna01@gmail.com'}
+        </Text>
+        {!!profileError && (
+          <Text style={[styles.profileDetails, { color: '#c1121f' }]}>
+            {profileError}
+          </Text>
+        )}
       </View>
       <View style={styles.pitchRow}>
         <TouchableOpacity style={styles.pitchButton} activeOpacity={0.9} onPress={() => router.push('/pitch')}>

@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { BASE_URLS, CHAT_BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
@@ -147,6 +148,22 @@ const normalizeTokenResponse = (data: any): TokenResponse => {
     refresh_expires_in: data.refresh_expires_in ?? data.refreshExpiresIn ?? undefined,
     token_type: data.token_type || data.tokenType || "Bearer",
   };
+};
+
+const extractSubFromAccessToken = async (): Promise<string | null> => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    if (!accessToken) return null;
+    const parts = accessToken.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    const payload = JSON.parse(json);
+    return payload?.sub || payload?.user_id || payload?.userId || null;
+  } catch {
+    return null;
+  }
 };
 
 const requestWithFallback = async (paths: string[], init: RequestInit, bases: string[] = BASE_URLS): Promise<Response> => {
@@ -413,6 +430,32 @@ export async function getCurrentUserProfile(): Promise<UserModel> {
     }
     return JSON.parse(text);
   } catch (err: any) {
+    // Fallback: probeer keycloak-sub als de backend "invalid id" of iets vergelijkbaars teruggeeft
+    const maybeMessage = String(err?.message || "").toLowerCase();
+    const sub = await extractSubFromAccessToken();
+    if (sub) {
+      try {
+        const res = await withAutoRefresh(
+          [`/api/users/keycloak/${encodeURIComponent(sub)}`, `/users/keycloak/${encodeURIComponent(sub)}`],
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res));
+        }
+        const text = await res.text();
+        if (!text) {
+          throw new Error("Gebruiker gevonden maar respons was leeg.");
+        }
+        return JSON.parse(text);
+      } catch (fallbackErr: any) {
+        // laat de originele boodschap zien als fallback ook faalt
+        const combined = fallbackErr?.message || err?.message || "Kon je profiel niet ophalen.";
+        throw new Error(combined);
+      }
+    }
     throw new Error(normalizeNetworkError(err));
   }
 }
