@@ -3,6 +3,8 @@ import SaveIconSvg from '@/assets/images/save-icon.svg';
 import AppHeader from '@/components/app-header';
 import { getUserInterests, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
+import * as Location from 'expo-location';
+import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,17 +21,30 @@ const CATEGORY_OPTIONS = [
   { key: 'education', label: 'Educatie' },
 ];
 
+const CATEGORY_KEY_BY_LABEL = CATEGORY_OPTIONS.reduce<Record<string, string>>((acc, opt) => {
+  const lower = opt.label.toLowerCase();
+  acc[opt.key.toLowerCase()] = opt.key;
+  acc[lower] = opt.key;
+  acc[lower.replace(/\s+/g, '_')] = opt.key;
+  return acc;
+}, {});
+
+const FILTER_CACHE_KEY = 'user_filters_cache_v1';
+
 export default function FiltersPage() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sliderValue, setSliderValue] = useState(25);
+  const [locationStatus, setLocationStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [locationWarning, setLocationWarning] = useState('');
   const [trackWidth, setTrackWidth] = useState(280); // start with a reasonable width for initial layout
   const trackWidthRef = useRef(280);
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [cachedLoaded, setCachedLoaded] = useState(false);
 
   const SLIDER_MIN = 0;
   const SLIDER_MAX = 120;
@@ -38,7 +53,11 @@ export default function FiltersPage() {
     navigation?.setOptions?.({ gestureEnabled: false });
   }, [navigation]);
 
-  const normalizeBoolean = (val: any) => {
+  useEffect(() => {
+    checkLocationPermission();
+  }, [checkLocationPermission]);
+
+  const normalizeBoolean = useCallback((val: any) => {
     if (val === true) return true;
     if (val === 1) return true;
     if (typeof val === 'string') {
@@ -46,29 +65,142 @@ export default function FiltersPage() {
       return lower === 'true' || lower === '1' || lower === 'yes';
     }
     return false;
-  };
+  }, []);
+
+  const readCachedFilters = useCallback(async () => {
+    try {
+      const raw = await SecureStore.getItemAsync(FILTER_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed) return null;
+      return {
+        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+        distance: Number.isFinite(parsed.distance) ? parsed.distance : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const writeCachedFilters = useCallback(async (categories: string[], distance: number) => {
+    try {
+      await SecureStore.setItemAsync(
+        FILTER_CACHE_KEY,
+        JSON.stringify({ categories, distance }),
+      );
+    } catch {
+      // best-effort cache
+    }
+  }, []);
+
+  const normalizeCategoryValue = useCallback((value: any) => {
+    const candidate = typeof value === 'string' ? value : value?.key || value?.name || value?.label || value?.title;
+    if (typeof candidate !== 'string') return null;
+    const lower = candidate.trim().toLowerCase();
+    const simplified = lower.replace(/\s+/g, '_');
+    return CATEGORY_KEY_BY_LABEL[lower] || CATEGORY_KEY_BY_LABEL[simplified] || null;
+  }, []);
+
+  const collectCategoriesFromApi = useCallback((data: UserInterestsInput) => {
+    const rawInterests = (data as any)?.interests ?? (data as any)?.categories ?? [];
+    const fromArray = Array.isArray(rawInterests)
+      ? rawInterests
+          .map(normalizeCategoryValue)
+          .filter((v): v is string => !!v)
+      : [];
+
+    const fromBooleans = CATEGORY_OPTIONS.filter(opt =>
+      normalizeBoolean(data?.[opt.key as keyof UserInterestsInput]),
+    ).map(opt => opt.key);
+
+    return Array.from(new Set([...fromArray, ...fromBooleans]));
+  }, [normalizeCategoryValue, normalizeBoolean]);
+
+  const checkLocationPermission = useCallback(async () => {
+    try {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status === 'granted') {
+        setLocationStatus('granted');
+        setLocationWarning('');
+        return true;
+      }
+      setLocationStatus('denied');
+      setLocationWarning('Geef de app toegang tot je locatie om de afstandsfilter te bewaren.');
+      return false;
+    } catch {
+      setLocationStatus('unknown');
+      setLocationWarning('Kon locatie rechten niet controleren. Controleer je instellingen.');
+      return false;
+    }
+  }, []);
+
+  const requestLocationPermission = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status === 'granted') {
+        setLocationStatus('granted');
+        setLocationWarning('');
+        return true;
+      }
+      setLocationStatus('denied');
+      setLocationWarning('Locatietoegang is nodig om de afstandsfilter te gebruiken.');
+      setErrorMessage('Geef locatietoegang om de afstandsfilter op te slaan.');
+      return false;
+    } catch {
+      setErrorMessage('Locatietoestemming opvragen mislukt.');
+      return false;
+    }
+  }, []);
 
   const loadFilters = useCallback(async () => {
     setLoadingFilters(true);
     setErrorMessage('');
     try {
       const data = await getUserInterests();
-      const activeCategories = CATEGORY_OPTIONS.filter(opt =>
-        normalizeBoolean(data?.[opt.key as keyof UserInterestsInput]),
-      ).map(opt => opt.key);
-      setSelectedCategories(activeCategories);
-      const distanceRaw = (data?.distance_km ?? data?.max_distance_km ?? (data as any)?.distance ?? (data as any)?.max_distance) as number | string | undefined;
+      const activeCategories = collectCategoriesFromApi(data);
+      if (activeCategories.length) {
+        setSelectedCategories(activeCategories);
+      } else if (!cachedLoaded) {
+        const cached = await readCachedFilters();
+        if (cached?.categories?.length) {
+          setSelectedCategories(cached.categories);
+        }
+      }
+      const distanceRaw = (
+        data?.distance_km ??
+        data?.max_distance_km ??
+        (data as any)?.distance ??
+        (data as any)?.max_distance ??
+        (data as any)?.distanceInKm ??
+        (data as any)?.radius ??
+        (data as any)?.radius_km
+      ) as number | string | undefined;
       const distance = typeof distanceRaw === 'string' ? parseFloat(distanceRaw) : distanceRaw;
-      if (Number.isFinite(distance || NaN)) {
+      if (Number.isFinite(distance as number)) {
         const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(distance)));
         setSliderValue(clamped);
+      } else if (!cachedLoaded) {
+        const cached = await readCachedFilters();
+        if (Number.isFinite(cached?.distance as number)) {
+          const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
+          setSliderValue(clamped);
+        }
       }
+      setCachedLoaded(true);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Kon filters niet laden');
+      const cached = await readCachedFilters();
+      if (cached?.categories?.length) {
+        setSelectedCategories(cached.categories);
+      }
+      if (Number.isFinite(cached?.distance as number)) {
+        const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
+        setSliderValue(clamped);
+      }
     } finally {
       setLoadingFilters(false);
     }
-  }, []);
+  }, [collectCategoriesFromApi, cachedLoaded, readCachedFilters]);
 
   useEffect(() => {
     loadFilters();
@@ -126,21 +258,30 @@ export default function FiltersPage() {
     setStatusMessage('');
     setSaving(true);
     try {
+      const hasLocationPermission = locationStatus === 'granted' ? true : await requestLocationPermission();
+      if (!hasLocationPermission) {
+        setSaving(false);
+        return;
+      }
       const payload: UserInterestsInput = {
         distance_km: sliderValue,
         max_distance_km: sliderValue,
         distance: sliderValue,
+        interests: selectedCategories,
+        categories: selectedCategories,
+        location_permission: true,
       };
       CATEGORY_OPTIONS.forEach(opt => {
         payload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
       });
-      // Zorg dat niet-geselecteerde categorieën expliciet false worden meegestuurd
+      // Zorg dat niet-geselecteerde categorieen expliciet false worden meegestuurd
       CATEGORY_OPTIONS.forEach(opt => {
         if (payload[opt.key as keyof UserInterestsInput] === undefined) {
           payload[opt.key as keyof UserInterestsInput] = false;
         }
       });
       await updateUserInterests(payload);
+      await writeCachedFilters(selectedCategories, sliderValue);
       setStatusMessage('Filters opgeslagen');
       await loadFilters(); // herladen zodat UI direct de opgeslagen waarden laat zien
     } catch (err: any) {
@@ -167,10 +308,11 @@ export default function FiltersPage() {
         showsVerticalScrollIndicator={false}
         scrollEnabled={false}
         bounces={false}>
-        {(!!statusMessage || !!errorMessage) && (
+        {(!!statusMessage || !!errorMessage || !!locationWarning) && (
           <View style={styles.messageBox}>
             {!!statusMessage && <Text style={styles.statusText}>{statusMessage}</Text>}
             {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+            {!!locationWarning && !errorMessage && <Text style={styles.warningText}>{locationWarning}</Text>}
           </View>
         )}
         <View style={styles.sectionSpacing} />
@@ -188,6 +330,14 @@ export default function FiltersPage() {
             <View style={[styles.sliderThumb, { transform: [{ translateX: thumbTranslate }] }]} />
           </View>
         </View>
+        {locationStatus !== 'granted' && (
+          <View style={styles.locationNotice}>
+            <Text style={styles.locationNoticeText}>Sta locatie toe zodat we de afstandsfilter kunnen toepassen.</Text>
+            <TouchableOpacity style={styles.locationButton} activeOpacity={0.85} onPress={requestLocationPermission}>
+              <Text style={styles.locationButtonText}>Sta locatie toe</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.categoryBlock}>
           <Text style={styles.categoryTitle}>Filter op categorie</Text>
@@ -261,6 +411,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  warningText: {
+    color: '#9a6b00',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 2,
+  },
   sliderBlock: {
     marginBottom: 32,
   },
@@ -317,6 +473,33 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
     elevation: 2,
+  },
+  locationNotice: {
+    backgroundColor: '#FFF4E0',
+    borderColor: '#FFCA7A',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 18,
+    gap: 8,
+  },
+  locationNoticeText: {
+    color: '#9a6b00',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  locationButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: ORANGE,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   categoryBlock: {
     alignItems: 'center',

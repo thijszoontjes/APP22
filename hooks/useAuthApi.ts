@@ -54,9 +54,17 @@ export interface UserInterestsInput {
   media?: boolean;
   production?: boolean;
   technology?: boolean;
+  interests?: string[];
+  categories?: string[];
+  distance?: number;
+  max_distance?: number;
   distance_km?: number;
   max_distance_km?: number;
-  [key: string]: boolean | number | undefined;
+  latitude?: number;
+  longitude?: number;
+  location_enabled?: boolean;
+  location_permission?: boolean;
+  [key: string]: boolean | number | string[] | undefined;
 }
 
 export interface SendMessageRequest {
@@ -333,14 +341,30 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
 export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
   try {
     const sanitizedPayload: UserInterestsInput = {};
+
     Object.entries(payload).forEach(([key, value]) => {
       if (value !== undefined) {
         sanitizedPayload[key] = value;
       }
     });
+
+    // Zorg dat afstand in alle mogelijke sleutelvarianten meegestuurd wordt
     if (sanitizedPayload.distance_km !== undefined) {
       sanitizedPayload.distance = sanitizedPayload.distance_km;
     }
+    if (sanitizedPayload.max_distance_km !== undefined) {
+      sanitizedPayload.max_distance = sanitizedPayload.max_distance_km;
+    }
+    const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
+    const interestFlags = Object.entries(payload)
+      .filter(([key, value]) => typeof value === "boolean" && value === true)
+      .map(([key]) => key);
+    const mergedInterests = Array.from(new Set([...interestArray, ...interestFlags]));
+    if (mergedInterests.length) {
+      sanitizedPayload.interests = mergedInterests;
+      sanitizedPayload.categories = mergedInterests;
+    }
+
     const res = await withAutoRefresh(
       ["/api/users/me/interests", "/users/me/interests"],
       {

@@ -24,47 +24,12 @@ export default function ChatPage() {
   const [error, setError] = useState('');
 
   const loadChats = useCallback(async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const me = await getCurrentUserProfile();
-      const messages = await fetchAllMyMessages();
-      if (!messages.length) {
-        setChats([]);
-        return;
-      }
-      const grouped = groupMessagesByUser(messages, me?.id);
-      const chatItems: ChatListItem[] = [];
-      for (const [userId, msgs] of grouped.entries()) {
-        if (!msgs.length || !userId) continue;
-        const sorted = [...msgs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        const last = sorted[sorted.length - 1];
-        let name = `Gebruiker #${userId}`;
-        try {
-          const user = await getUserById(userId);
-          const maybeName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-          if (maybeName) name = maybeName;
-        } catch {
-          // best-effort; laat fallback naam staan
-        }
-        chatItems.push({
-          id: userId,
-          name,
-          message: last?.content || '',
-          time: formatTimeLabel(last?.created_at),
-          lastAt: new Date(last?.created_at || Date.now()).getTime(),
-          initials: deriveInitials(name),
-        });
-      }
-      chatItems.sort((a, b) => b.lastAt - a.lastAt);
-      setChats(chatItems);
-    } catch (err: any) {
-      setError(err?.message || 'Kon chats niet laden.');
-      setChats([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    // De backend vereist een `with` query parameter om een gesprek op te halen,
+    // er is geen endpoint voor een complete chatlijst. Laat daarom een vriendelijke uitleg zien.
+    setLoading(false);
+    setRefreshing(false);
+    setChats([]);
+    setError('Open een chat via een profiel of zoekresultaat. De API ondersteunt geen algemene chatlijst zonder `with` parameter.');
   }, []);
 
   useEffect(() => {
@@ -142,8 +107,16 @@ export default function ChatPage() {
 
 const groupMessagesByUser = (messages: ChatMessage[], myId?: number) => {
   const grouped = new Map<number, ChatMessage[]>();
+  const normalizeId = (value: unknown) => {
+    const numeric = typeof value === "string" ? Number(value) : value;
+    return Number.isFinite(numeric as number) ? (numeric as number) : null;
+  };
+
   messages.forEach((msg) => {
-    const partnerId = myId && msg.sender_id === myId ? msg.receiver_id : msg.sender_id || msg.receiver_id;
+    const senderId = normalizeId(msg.sender_id);
+    const receiverId = normalizeId(msg.receiver_id);
+    const me = normalizeId(myId);
+    const partnerId = me && senderId === me ? receiverId : senderId || receiverId;
     if (!partnerId) return;
     const list = grouped.get(partnerId) || [];
     list.push(msg);
