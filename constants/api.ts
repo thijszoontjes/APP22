@@ -8,6 +8,10 @@ const DEFAULT_CHAT_BASE_URL = "https://chatservice-chatservice-projectgroup1-pro
 const SECONDARY_CHAT_BASE_URL = "https://chatservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 const SECONDARY_CHAT_BASE_URL_HTTP = "http://chatservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 
+const DEFAULT_VIDEO_BASE_URL = "https://videoservice-videoservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_VIDEO_BASE_URL = "https://videoservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_VIDEO_BASE_URL_HTTP = "http://videoservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+
 const stripTrailingSlash = (url: string) => url.replace(/\/+$/, "");
 
 // Probeer eerst de env-var, daarna de bekende routes (oude + nieuwe DNS zonder dubbele service-naam).
@@ -43,3 +47,18 @@ export const CHAT_BASE_URLS = Array.from(
 );
 
 export const CHAT_BASE_URL = CHAT_BASE_URLS[0] || DEFAULT_CHAT_BASE_URL;
+
+export const VIDEO_BASE_URLS = Array.from(
+  new Set(
+    [
+      process.env.EXPO_PUBLIC_VIDEO_URL,
+      SECONDARY_VIDEO_BASE_URL,
+      DEFAULT_VIDEO_BASE_URL,
+      SECONDARY_VIDEO_BASE_URL_HTTP,
+    ]
+      .filter(isString)
+      .map((url) => stripTrailingSlash(url)),
+  ),
+);
+
+export const VIDEO_BASE_URL = VIDEO_BASE_URLS[0] || DEFAULT_VIDEO_BASE_URL;

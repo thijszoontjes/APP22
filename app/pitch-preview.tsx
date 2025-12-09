@@ -5,6 +5,7 @@ import PauseIconSvg from '@/assets/images/pause-icon.svg';
 import PlayIconSvg from '@/assets/images/play-icon.svg';
 import UploadIconSvg from '@/assets/images/upload-icon.svg';
 import { getPitches } from '@/constants/pitch-store';
+import { createVideoUpload, uploadVideoToMux } from '@/hooks/useVideoApi';
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -55,6 +56,7 @@ export default function PitchPreview() {
   const [selectedEnd, setSelectedEnd] = useState(100);
   const [isTrimApplied, setIsTrimApplied] = useState(false);
   const [soundValue, setSoundValue] = useState(1);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Manage loop state based on trim - this takes precedence
   useEffect(() => {
@@ -198,19 +200,55 @@ export default function PitchPreview() {
     router.replace({ pathname: '/pitch', params: { facing: params.facing ?? 'front' } });
   };
 
-  const handleUpload = () => {
-    const hasEdits = lightValue !== 0 || isTrimApplied;
-    if (hasEdits) {
+  const handleUpload = async () => {
+    if (isUploading || !videoUri) {
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+
+      // Stap 1: Vraag upload URL aan bij VideoService
+      console.log('[PitchPreview] Vraag upload URL aan...');
+      const uploadData = await createVideoUpload({
+        title: 'Mijn Pitch',
+        description: 'Een pitch video',
+        category: 'pitch',
+      });
+
+      console.log('[PitchPreview] Upload URL ontvangen:', uploadData.uploadUrl);
+
+      // Stap 2: Lees video file met fetch (werkt met file:// en ph:// URIs)
+      const response = await fetch(videoUri);
+      if (!response.ok) {
+        throw new Error('Video bestand niet gevonden');
+      }
+      
+      const blob = await response.blob();
+
+      console.log('[PitchPreview] Upload video naar Mux...', {
+        size: blob.size,
+        type: blob.type,
+      });
+
+      // Stap 3: Upload naar Mux
+      await uploadVideoToMux(uploadData.uploadUrl, blob);
+
+      console.log('[PitchPreview] Video succesvol geupload!');
       Alert.alert(
-        'Edits opslaan?',
-        `Helderheid: ${lightValue !== 0 ? `${lightValue > 0 ? '+' : ''}${lightValue}` : 'geen'}, Trim: ${isTrimApplied ? 'ja' : 'nee'}`,
-        [
-          { text: 'Annuleren', style: 'cancel' },
-          { text: 'Uploaden', onPress: () => router.replace('/(tabs)/profile') },
-        ]
+        'Succes!',
+        'Je pitch is succesvol geupload en wordt verwerkt.',
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)/profile') }]
       );
-    } else {
-      router.replace('/(tabs)/profile');
+    } catch (err: any) {
+      console.error('[PitchPreview] Upload error:', err);
+      Alert.alert(
+        'Upload mislukt',
+        err?.message || 'Kon video niet uploaden. Probeer het opnieuw.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -460,9 +498,14 @@ export default function PitchPreview() {
             <TouchableOpacity style={[styles.orangeButton, styles.playButton]} activeOpacity={0.9} onPress={togglePlayback}>
               {isPlaying ? <PauseIconSvg width={16} height={16} /> : <PlayIconSvg width={16} height={16} />}
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.orangeButton, styles.wideButton]} activeOpacity={0.9} onPress={handleUpload}>
-              <Text style={styles.orangeText}>Uploaden</Text>
-              <UploadIconSvg width={18} height={18} />
+            <TouchableOpacity 
+              style={[styles.orangeButton, styles.wideButton, isUploading && styles.disabledButton]} 
+              activeOpacity={0.9} 
+              onPress={handleUpload}
+              disabled={isUploading}
+            >
+              <Text style={styles.orangeText}>{isUploading ? 'Uploaden...' : 'Uploaden'}</Text>
+              {!isUploading && <UploadIconSvg width={18} height={18} />}
             </TouchableOpacity>
           </View>
         )}
@@ -552,6 +595,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
+  },
+  disabledButton: {
+    backgroundColor: '#CCC',
+    opacity: 0.6,
   },
   wideButton: {
     flex: 0.92,
