@@ -1,5 +1,5 @@
-import { VIDEO_BASE_URLS } from "../constants/api";
-import { getAuthTokens } from "./authStorage";
+import { BASE_URLS, VIDEO_BASE_URLS } from "../constants/api";
+import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface StreamVariant {
   url: string;
@@ -78,11 +78,12 @@ const parseErrorMessage = async (res: Response) => {
 
 const requestWithFallback = async (
   path: string,
-  init: RequestInit
+  init: RequestInit,
+  bases: string[] = VIDEO_BASE_URLS
 ): Promise<Response> => {
   let lastError: Error | null = null;
 
-  for (const base of VIDEO_BASE_URLS) {
+  for (const base of bases) {
     const url = `${base}${path}`;
     console.log(`[VideoAPI] Probeer: ${url}`);
     try {
@@ -105,17 +106,71 @@ const requestWithFallback = async (
   throw new Error("Geen verbinding met video service mogelijk");
 };
 
-export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
-  const { accessToken } = await getAuthTokens();
+const refreshAccessToken = async (refreshToken: string) => {
+  if (!refreshToken) {
+    throw new Error("Geen sessie gevonden. Log opnieuw in.");
+  }
+  const res = await requestWithFallback(
+    "/api/auth/refresh",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    },
+    BASE_URLS
+  );
+
+  if (!res.ok) {
+    throw new Error("Sessie verlopen. Log opnieuw in.");
+  }
+
+  const data = await res.json();
+  const newAccess = data.access_token || data.accessToken;
+  const newRefresh = data.refresh_token || data.refreshToken;
+  if (!newAccess || !newRefresh) {
+    throw new Error("Sessie verlopen. Log opnieuw in.");
+  }
+  await saveAuthTokens(newAccess, newRefresh);
+  return { accessToken: newAccess, refreshToken: newRefresh };
+};
+
+const videoRequestWithAuth = async (path: string, init: RequestInit = {}) => {
+  const { accessToken, refreshToken } = await getAuthTokens();
   if (!accessToken) {
     throw new Error("Geen toegang. Log opnieuw in.");
   }
 
+  const withAuth = (token: string) =>
+    requestWithFallback(path, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+  let res = await withAuth(accessToken);
+  if (res.status === 401 && refreshToken) {
+    try {
+      const refreshed = await refreshAccessToken(refreshToken);
+      res = await withAuth(refreshed.accessToken || "");
+    } catch (err) {
+      await clearAuthToken();
+      throw err;
+    }
+  }
+  if (res.status === 401) {
+    await clearAuthToken();
+    throw new Error("Sessie verlopen. Log opnieuw in.");
+  }
+  return res;
+};
+
+export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
   try {
-    const res = await requestWithFallback(`/feed?limit=${limit}`, {
+    const res = await videoRequestWithAuth(`/feed?limit=${limit}`, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
     });
@@ -187,11 +242,6 @@ export interface UploadResponse {
 export async function createVideoUpload(
   payload: CreateVideoRequest
 ): Promise<UploadResponse> {
-  const { accessToken } = await getAuthTokens();
-  if (!accessToken) {
-    throw new Error("Geen toegang. Log opnieuw in.");
-  }
-
   // Minimale payload - alleen title is vereist
   const uploadPayload = {
     title: payload.title || 'Nieuwe Video'
@@ -200,10 +250,9 @@ export async function createVideoUpload(
   console.log('[VideoAPI] Create upload with payload:', uploadPayload);
 
   try {
-    const res = await requestWithFallback("/videos", {
+    const res = await videoRequestWithAuth("/videos", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(uploadPayload),
@@ -254,16 +303,10 @@ export async function uploadVideoToMux(
 
 // Haal eigen videos op (van ingelogde user)
 export async function getMyVideos(): Promise<FeedResponse> {
-  const { accessToken } = await getAuthTokens();
-  if (!accessToken) {
-    throw new Error("Geen toegang. Log opnieuw in.");
-  }
-
   try {
-    const res = await requestWithFallback("/videos/my", {
+    const res = await videoRequestWithAuth("/videos/my", {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
     });

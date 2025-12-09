@@ -16,6 +16,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORANGE = '#FF8700';
@@ -28,6 +29,7 @@ interface VideoFeedItemProps {
 
 export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedItemProps) {
   const router = useRouter();
+  const isScreenFocused = useIsFocused();
   const [liked, setLiked] = useState(item.liked);
   const [hearted, setHearted] = useState(false);
   const [likeCount, setLikeCount] = useState(item.likeCount);
@@ -57,14 +59,15 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   });
 
   useEffect(() => {
-    if (isActive && videoSource) {
+    const shouldPlay = !!videoSource && isActive && isScreenFocused;
+    if (shouldPlay) {
       player.muted = false;
       player.play();
     } else {
       player.muted = true;
       player.pause();
     }
-  }, [isActive, player, videoSource]);
+  }, [isActive, player, videoSource, isScreenFocused]);
 
   useEffect(() => {
     return () => {
