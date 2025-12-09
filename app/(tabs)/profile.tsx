@@ -2,13 +2,14 @@ import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { getPitches, subscribe } from '@/constants/pitch-store';
 import { getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
+import { getMyVideos, type FeedItem } from '@/hooks/useVideoApi';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TabBar, TabView } from 'react-native-tab-view';
 
-const tabLabels = ['Eigen video', 'Gelikte video', 'Favorieten'];
+const tabLabels = ['Eigen video', 'Gelikete video', 'Favorieten'];
 const ORANGE = '#FF8700';
 
 // Video Thumbnail Component - Only loads when visible
@@ -44,6 +45,8 @@ export default function ProfilePage() {
     { key: 'third', title: tabLabels[2] },
   ]);
   const [pitches, setPitches] = useState(getPitches());
+  const [apiVideos, setApiVideos] = useState<FeedItem[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
   const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
   const [profile, setProfile] = useState<UserModel | null>(null);
   const [profileError, setProfileError] = useState('');
@@ -83,6 +86,26 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
+  // Load own videos from API
+  useEffect(() => {
+    const loadVideos = async () => {
+      setVideosLoading(true);
+      try {
+        const data = await getMyVideos();
+        setApiVideos(data.items);
+        console.log('[Profile] Loaded', data.items.length, 'videos from API');
+      } catch (err: any) {
+        console.error('[Profile] Failed to load videos:', err);
+        setApiVideos([]);
+      } finally {
+        setVideosLoading(false);
+      }
+    };
+    loadVideos();
+  }, []);
+
+  const totalVideos = apiVideos.length + pitches.length;
+
   const handleScroll = useCallback((event: any) => {
     const offsetY = event.nativeEvent.contentOffset.y;
     const contentHeight = event.nativeEvent.contentSize.height;
@@ -94,20 +117,28 @@ export default function ProfilePage() {
     const rowSize = 3; // 3 columns
     
     const startIndex = Math.max(0, Math.floor((offsetY - 280) / itemHeight) * rowSize);
-    const endIndex = Math.min(pitches.length - 1, Math.ceil((offsetY + layoutHeight + 280) / itemHeight) * rowSize);
+    const endIndex = Math.min(totalVideos - 1, Math.ceil((offsetY + layoutHeight + 280) / itemHeight) * rowSize);
     
     for (let i = startIndex; i <= endIndex; i++) {
       visibleIndicesSet.add(i);
     }
     
     setVisibleIndices(visibleIndicesSet);
-  }, [pitches.length]);
+  }, [totalVideos]);
 
   const renderOwnVideos = () => {
-    if (pitches.length === 0) {
+    if (videosLoading) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.tabContentText}>Nog geen video's opgeslagen.</Text>
+          <Text style={styles.tabContentText}>Laden...</Text>
+        </View>
+      );
+    }
+
+    if (totalVideos === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.tabContentText}>Nog geen video's. Neem je eerste pitch op!</Text>
         </View>
       );
     }
@@ -120,12 +151,22 @@ export default function ProfilePage() {
         onScroll={handleScroll}
         scrollEventThrottle={200}>
         <View style={styles.videosGrid}>
+          {/* Toon API videos (van backend/Mux) */}
+          {apiVideos.map((video, i) => (
+            <VideoThumbnail 
+              key={`api-${video.id}`}
+              uri={video.signedUrl || video.progressiveUrl || ''}
+              onPress={() => setSelectedVideoUri(video.signedUrl || video.progressiveUrl || '')}
+              isVisible={visibleIndices.has(i)}
+            />
+          ))}
+          {/* Toon lokale pitches */}
           {pitches.map((pitch, i) => (
             <VideoThumbnail 
-              key={i} 
+              key={`local-${i}`}
               uri={pitch.uri}
               onPress={() => setSelectedVideoUri(pitch.uri)}
-              isVisible={visibleIndices.has(i)}
+              isVisible={visibleIndices.has(apiVideos.length + i)}
             />
           ))}
         </View>

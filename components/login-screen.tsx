@@ -120,7 +120,7 @@ export default function LoginScreen() {
             style={[styles.loginBtn, styles.placeholderBtn]}
             onPress={() => router.replace('/(tabs)')}
             accessibilityHint="Placeholder om zonder login naar de app te gaan">
-            <Text style={styles.loginBtnText}>Sla login over (placeholder)</Text>
+            <Text style={styles.loginBtnText}>Sla login over</Text>
           </TouchableOpacity>
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
