@@ -27,6 +27,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const [cardHeight, setCardHeight] = useState(SCREEN_HEIGHT);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -136,40 +137,42 @@ export default function HomePage() {
         ]}
       />
       <View style={styles.content}>
-        {showScrollHint && (
-          <TouchableOpacity 
-            style={styles.hintOverlay} 
-            activeOpacity={0.85} 
-            onPress={() => { 
-              setShowScrollHint(false); 
-              setHomeHintSeen(); 
-            }}
-          >
-            <View style={styles.hintContent}>
-              <Text style={styles.hintText}>Swipe omhoog om nieuwe video's te ontdekken</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        <FlatList
-          ref={flatListRef}
-          data={videos}
-          renderItem={({ item, index }) => (
-            <VideoFeedItem item={item} isActive={index === activeVideoIndex} />
+        <View style={styles.hintHitbox} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>
+          {showScrollHint && (
+            <TouchableOpacity
+              style={styles.hintOverlay}
+              activeOpacity={0.85}
+              onPress={() => {
+                setShowScrollHint(false);
+                setHomeHintSeen();
+              }}
+            >
+              <View style={styles.hintContent}>
+                <Text style={styles.hintText}>Swipe omhoog om nieuwe video's te ontdekken</Text>
+              </View>
+            </TouchableOpacity>
           )}
-          keyExtractor={(item) => item.id.toString()}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          snapToInterval={SCREEN_HEIGHT}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_HEIGHT,
-            offset: SCREEN_HEIGHT * index,
-            index,
-          })}
-        />
+          <FlatList
+            ref={flatListRef}
+            data={videos}
+            renderItem={({ item, index }) => (
+              <VideoFeedItem item={item} isActive={index === activeVideoIndex} cardHeight={cardHeight} />
+            )}
+            keyExtractor={(item) => item.id.toString()}
+            pagingEnabled
+            showsVerticalScrollIndicator={false}
+            snapToInterval={cardHeight}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            getItemLayout={(_, index) => ({
+              length: cardHeight,
+              offset: cardHeight * index,
+              index,
+            })}
+          />
+        </View>
       </View>
     </View>
   );
@@ -189,6 +192,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
+    flex: 1,
+  },
+  hintHitbox: {
     flex: 1,
   },
   loadingContainer: {

@@ -23,9 +23,10 @@ const ORANGE = '#FF8700';
 interface VideoFeedItemProps {
   item: FeedItem;
   isActive: boolean;
+  cardHeight?: number;
 }
 
-export default function VideoFeedItem({ item, isActive }: VideoFeedItemProps) {
+export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedItemProps) {
   const router = useRouter();
   const [liked, setLiked] = useState(item.liked);
   const [hearted, setHearted] = useState(false);
@@ -164,8 +165,10 @@ export default function VideoFeedItem({ item, isActive }: VideoFeedItemProps) {
     );
   }
 
+  const boundedHeight = cardHeight || SCREEN_HEIGHT;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: boundedHeight, maxHeight: boundedHeight }]}>
       <VideoView
         style={styles.video}
         player={player}
@@ -222,7 +225,6 @@ export default function VideoFeedItem({ item, isActive }: VideoFeedItemProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: SCREEN_HEIGHT,
     width: SCREEN_WIDTH,
     backgroundColor: '#000',
     overflow: 'hidden',
