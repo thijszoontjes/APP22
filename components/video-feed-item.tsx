@@ -58,11 +58,20 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
 
   useEffect(() => {
     if (isActive && videoSource) {
+      player.muted = false;
       player.play();
     } else {
+      player.muted = true;
       player.pause();
     }
   }, [isActive, player, videoSource]);
+
+  useEffect(() => {
+    return () => {
+      // Ensure audio stops when the card unmounts (e.g., when scrolled far away)
+      player.pause();
+    };
+  }, [player]);
 
   const handleHeartPress = () => {
     setHearted(!hearted);
@@ -172,6 +181,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
       <VideoView
         style={styles.video}
         player={player}
+        nativeControls={false}
         allowsFullscreen={false}
         allowsPictureInPicture={false}
         contentFit="cover"
