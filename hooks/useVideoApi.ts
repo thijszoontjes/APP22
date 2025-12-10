@@ -33,6 +33,7 @@ export interface FeedItem {
   owner?: VideoOwner;
   userId?: number; // ID van de user die de video uploaded heeft
   ownerId?: number; // Alternative field voor owner ID
+  createdAt?: string; // ISO 8601 timestamp van video creatie
 }
 
 export interface FeedResponse {
@@ -155,13 +156,25 @@ const videoRequestWithAuth = async (path: string, init: RequestInit = {}) => {
       const refreshed = await refreshAccessToken(refreshToken);
       res = await withAuth(refreshed.accessToken || "");
     } catch (err) {
+      // Alleen uitloggen als refresh echt faalt, niet bij tijdelijke server errors
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('503') || errMsg.includes('duurde te lang')) {
+        // Server probleem, niet authenticatie - blijf ingelogd
+        throw new Error("Server tijdelijk niet bereikbaar. Probeer het opnieuw.");
+      }
       await clearAuthToken();
       throw err;
     }
   }
   if (res.status === 401) {
-    await clearAuthToken();
-    throw new Error("Sessie verlopen. Log opnieuw in.");
+    // Alleen uitloggen als het echt een auth probleem is
+    const errorText = await res.text();
+    if (errorText.toLowerCase().includes('token') || errorText.toLowerCase().includes('expired')) {
+      await clearAuthToken();
+      throw new Error("Sessie verlopen. Log opnieuw in.");
+    }
+    // Anders is het een server issue
+    throw new Error("Server tijdelijk niet bereikbaar. Probeer het opnieuw.");
   }
   return res;
 };
@@ -194,25 +207,12 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
     const data = await res.json();
     
-    console.log('[VideoAPI] Feed data ontvangen:', JSON.stringify(data, null, 2));
-    
     // Check of we daadwerkelijk items hebben
     if (!data.items || data.items.length === 0) {
       throw new Error("Nog geen video's beschikbaar. Upload de eerste video!");
     }
     
     console.log(`[VideoAPI] ${data.items.length} video's geladen`);
-    data.items.forEach((item: FeedItem, index: number) => {
-      console.log(`[VideoAPI] Video ${index + 1}:`, {
-        id: item.id,
-        title: item.title,
-        hasStream: !!item.stream,
-        streamCount: item.stream?.length || 0,
-        hasProgressiveUrl: !!item.progressiveUrl,
-        progressiveUrl: item.progressiveUrl,
-        streamUrls: item.stream?.map(s => s.url) || []
-      });
-    });
     
     return data;
   } catch (err: any) {

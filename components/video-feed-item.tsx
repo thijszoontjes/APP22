@@ -4,6 +4,7 @@ import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import type { FeedItem } from '@/hooks/useVideoApi';
+import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
@@ -16,10 +17,39 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORANGE = '#FF8700';
+
+// Functie om relative time te berekenen
+// TODO: Backend moet createdAt field toevoegen aan /feed endpoint
+// Momenteel stuurt backend dit veld niet mee in de response
+function getRelativeTime(createdAt?: string): string {
+  if (!createdAt) {
+    console.warn('[VideoFeedItem] createdAt is undefined - backend stuurt dit veld niet mee');
+    return 'Nu beschikbaar';
+  }
+  
+  try {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - created.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMinutes < 1) return 'Zojuist';
+    if (diffMinutes < 60) return `${diffMinutes} ${diffMinutes === 1 ? 'minuut' : 'minuten'} geleden`;
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'uur' : 'uren'} geleden`;
+    if (diffDays === 1) return 'Gisteren';
+    if (diffDays < 7) return `${diffDays} dagen geleden`;
+    
+    // Toon datum voor oudere videos
+    return created.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return 'Nu beschikbaar';
+  }
+}
 
 interface VideoFeedItemProps {
   item: FeedItem;
@@ -43,15 +73,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
                       item.progressiveUrl || 
                       item.stream?.[0]?.url;
 
-  console.log('[VideoFeedItem] Video item:', {
-    id: item.id,
-    title: item.title,
-    hasSignedUrl: !!item.signedUrl,
-    owner: item.owner,
-    userId: item.userId,
-    ownerId: item.ownerId,
-    videoSource,
-  });
+  // Video source bepaald
 
   const player = useVideoPlayer(videoSource || '', (player) => {
     player.loop = true;
@@ -203,7 +225,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
       <View style={styles.overlay}>
         <View style={{ flex: 1, maxWidth: '65%' }}>
           <View style={styles.timeBadge}>
-            <Text style={styles.timeBadgeText}>Nu beschikbaar</Text>
+            <Text style={styles.timeBadgeText}>{getRelativeTime(item.createdAt)}</Text>
           </View>
           <Text style={styles.name} numberOfLines={1}>{item.owner?.displayName || 'Onbekend'}</Text>
           <Text style={styles.subText} numberOfLines={2}>{item.title}</Text>
