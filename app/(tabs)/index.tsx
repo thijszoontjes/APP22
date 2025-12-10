@@ -5,14 +5,14 @@ import VideoFeedItem from '@/components/video-feed-item';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewToken,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    ViewToken,
 } from 'react-native';
 
 import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
@@ -28,6 +28,7 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const [cardHeight, setCardHeight] = useState(SCREEN_HEIGHT);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -52,6 +53,19 @@ export default function HomePage() {
       setError(err?.message || 'Kon videos niet laden');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setError('');
+      const feed = await getVideoFeed(20);
+      setVideos(feed.items);
+    } catch (err: any) {
+      setError(err?.message || 'Kon videos niet laden');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -171,6 +185,8 @@ export default function HomePage() {
               offset: cardHeight * index,
               index,
             })}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
           />
         </View>
       </View>
