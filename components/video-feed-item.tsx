@@ -21,17 +21,19 @@ import {
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORANGE = '#FF8700';
 
-// Functie om relative time te berekenen
-// TODO: Backend moet createdAt field toevoegen aan /feed endpoint
-// Momenteel stuurt backend dit veld niet mee in de response
-function getRelativeTime(createdAt?: string): string {
+// Functie om Unix timestamp te formatteren naar datum en relatieve tijd
+function getRelativeTime(createdAt?: string | number): string {
   if (!createdAt) {
-    console.warn('[VideoFeedItem] createdAt is undefined - backend stuurt dit veld niet mee');
     return 'Nu beschikbaar';
   }
   
   try {
-    const created = new Date(createdAt);
+    // Converteer Unix timestamp (getal in seconden) naar milliseconden
+    const timestamp = typeof createdAt === 'number' 
+      ? createdAt * 1000  // Unix timestamp in seconden -> milliseconden
+      : parseInt(createdAt, 10) * 1000;
+    
+    const created = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - created.getTime();
     const diffMinutes = Math.floor(diffMs / 60000);
@@ -44,9 +46,13 @@ function getRelativeTime(createdAt?: string): string {
     if (diffDays === 1) return 'Gisteren';
     if (diffDays < 7) return `${diffDays} dagen geleden`;
     
-    // Toon datum voor oudere videos
-    return created.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+    // Toon datum voor oudere videos (YYYY-MM-DD formaat)
+    const year = created.getFullYear();
+    const month = String(created.getMonth() + 1).padStart(2, '0');
+    const day = String(created.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   } catch (e) {
+    console.warn('[VideoFeedItem] Fout bij formatteren createdAt:', createdAt, e);
     return 'Nu beschikbaar';
   }
 }
