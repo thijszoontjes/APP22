@@ -1,9 +1,9 @@
 import AppHeader from '@/components/app-header';
 import { ensureValidSession, fetchConversation, getUserById } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 
 const ORANGE = '#FF8700';
 
