@@ -1,31 +1,75 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
 import AppHeader from '@/components/app-header';
+import { searchUsers, type UserModel } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
-
-const HARD_CODED_RESULTS = [
-  {
-    id: 'maarten',
-    name: 'Maarten Kuip',
-    company: 'Design for All, Heerhugowaard',
-    role: 'Webdesigner',
-    avatar: require('@/assets/images/homepage-maarten.png'),
-  },
-];
 
 export default function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [segment, setSegment] = useState<'personen' | 'community'>('personen');
+  const [results, setResults] = useState<UserModel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const results = useMemo(() => {
-    if (query.trim().length === 0) return [];
-    return HARD_CODED_RESULTS;
+  useEffect(() => {
+    const searchTimeout = setTimeout(() => {
+      if (query.trim().length === 0) {
+        setResults([]);
+        setError('');
+        return;
+      }
+
+      if (query.trim().length < 2) {
+        setResults([]);
+        setError('');
+        return;
+      }
+
+      performSearch();
+    }, 500); // Debounce: wacht 500ms na laatste typing
+
+    return () => clearTimeout(searchTimeout);
   }, [query]);
+
+  const performSearch = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const users = await searchUsers(query);
+      setResults(users);
+      
+      if (users.length === 0 && query.trim().length >= 2) {
+        setError('Geen gebruikers gevonden');
+      }
+    } catch (err: any) {
+      console.error('[SearchScreen] Zoeken mislukt:', err);
+      setError(err?.message || 'Kon niet zoeken');
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfilePress = (userId?: number) => {
+    if (!userId) {
+      alert('Kan profiel niet openen');
+      return;
+    }
+    // Navigeer naar profiel of DM scherm
+    router.push({
+      pathname: '/dm',
+      params: {
+        userId: userId,
+        userName: `Gebruiker ${userId}`,
+      },
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -67,18 +111,56 @@ export default function SearchScreen() {
         </View>
         <View style={styles.fullDivider} />
 
-        {results.map(result => (
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={ORANGE} />
+            <Text style={styles.loadingText}>Zoeken...</Text>
+          </View>
+        )}
+
+        {!loading && error && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>{error}</Text>
+          </View>
+        )}
+
+        {!loading && !error && results.length === 0 && query.trim().length >= 2 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Geen gebruikers gevonden</Text>
+          </View>
+        )}
+
+        {!loading && results.map(result => (
           <View key={result.id} style={styles.listItemWrap}>
             <View style={styles.listItem}>
-              <Image source={result.avatar} style={styles.avatar} />
-              <View style={styles.listTextBlock}>
-                <Text style={styles.listName}>{result.name}</Text>
-                <Text style={styles.listCompany} numberOfLines={1}>
-                  {result.company}
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitials}>
+                  {(result.first_name?.[0] || '').toUpperCase()}{(result.last_name?.[0] || '').toUpperCase()}
                 </Text>
-                <Text style={styles.listRole}>{result.role}</Text>
               </View>
-              <TouchableOpacity activeOpacity={0.9} style={styles.profileButton}>
+              <View style={styles.listTextBlock}>
+                <Text style={styles.listName}>
+                  {result.first_name} {result.last_name}
+                </Text>
+                {result.job_function && (
+                  <Text style={styles.listRole}>{result.job_function}</Text>
+                )}
+                {result.sector && (
+                  <Text style={styles.listCompany} numberOfLines={1}>
+                    {result.sector}
+                  </Text>
+                )}
+                {result.country && (
+                  <Text style={styles.listCompany} numberOfLines={1}>
+                    {result.country}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity 
+                activeOpacity={0.9} 
+                style={styles.profileButton}
+                onPress={() => handleProfilePress(result.id)}
+              >
                 <Text style={styles.profileButtonText}>Open profiel</Text>
               </TouchableOpacity>
             </View>
@@ -194,6 +276,21 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: ORANGE,
   },
+  avatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: ORANGE,
+    backgroundColor: '#FFE8D6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitials: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: ORANGE,
+  },
   listTextBlock: {
     flex: 1,
     gap: 2,
@@ -230,4 +327,23 @@ const styles = StyleSheet.create({
     marginLeft: 74,
     marginRight: -20,
   },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
+

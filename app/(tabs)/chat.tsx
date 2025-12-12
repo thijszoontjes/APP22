@@ -1,9 +1,9 @@
 import AppHeader from '@/components/app-header';
-import { fetchConversation, getUserById } from '@/hooks/useAuthApi';
+import { ensureValidSession, fetchConversation, getUserById } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 
 const ORANGE = '#FF8700';
 
@@ -107,6 +107,16 @@ export default function ChatPage() {
     setError('');
     setLoading(true);
     try {
+      // Valideer sessie eerst
+      const isValid = await ensureValidSession();
+      if (!isValid) {
+        setError('Sessie verlopen. Log opnieuw in.');
+        setLoading(false);
+        setRefreshing(false);
+        router.replace('/login');
+        return;
+      }
+
       const saved = await readStoredChats();
       if (!saved.length) {
         setChats([]);

@@ -5,17 +5,18 @@ import VideoFeedItem from '@/components/video-feed-item';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewToken,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewToken,
 } from 'react-native';
 
 import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
+import { ensureValidSession } from '@/hooks/useAuthApi';
 import { getVideoFeed, type FeedItem } from '@/hooks/useVideoApi';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -40,7 +41,30 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    loadVideoFeed();
+    // Valideer sessie bij het laden van de pagina
+    const initSession = async () => {
+      const isValid = await ensureValidSession();
+      if (!isValid) {
+        setError('Sessie verlopen. Log opnieuw in.');
+        setLoading(false);
+        router.replace('/login');
+        return;
+      }
+      loadVideoFeed();
+    };
+    initSession();
+
+    // Check sessie elke 2 minuten om tokens proactief te refreshen
+    const sessionCheckInterval = setInterval(async () => {
+      const isValid = await ensureValidSession();
+      if (!isValid) {
+        clearInterval(sessionCheckInterval);
+        setError('Sessie verlopen. Log opnieuw in.');
+        router.replace('/login');
+      }
+    }, 2 * 60 * 1000); // Elke 2 minuten
+
+    return () => clearInterval(sessionCheckInterval);
   }, []);
 
   const loadVideoFeed = async () => {

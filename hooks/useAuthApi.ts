@@ -166,6 +166,65 @@ const extractSubFromAccessToken = async (): Promise<string | null> => {
   }
 };
 
+const decodeToken = (token: string): any | null => {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolean => {
+  const payload = decodeToken(token);
+  if (!payload?.exp) return true; // Als we exp niet kunnen lezen, assume expired
+  const expiresAt = payload.exp * 1000; // JWT exp is in seconds, convert to ms
+  const now = Date.now();
+  const timeUntilExpiry = expiresAt - now;
+  // Token is expiring soon if less than bufferSeconds (default 5 min) remaining
+  return timeUntilExpiry < (bufferSeconds * 1000);
+};
+
+/**
+ * Controleert of de huidige sessie nog geldig is en refresht indien nodig.
+ * Roep dit aan bij app start of wanneer je zeker wilt zijn dat de sessie geldig is.
+ */
+export async function ensureValidSession(): Promise<boolean> {
+  try {
+    const { accessToken, refreshToken } = await getAuthTokens();
+    if (!accessToken || !refreshToken) {
+      return false; // Geen tokens = niet ingelogd
+    }
+
+    // Check of access token binnenkort verloopt (binnen 5 minuten)
+    if (isTokenExpiringSoon(accessToken, 300)) {
+      console.log('[Auth] Access token verloopt binnenkort, probeer te refreshen...');
+      try {
+        const refreshed = await refreshApi(refreshToken);
+        if (refreshed?.access_token && refreshed?.refresh_token) {
+          await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
+          console.log('[Auth] Tokens succesvol gerefreshed');
+          return true;
+        }
+      } catch (err: any) {
+        console.error('[Auth] Refresh failed:', err?.message);
+        // Als refresh faalt, clear tokens
+        await clearAuthToken();
+        return false;
+      }
+    }
+
+    return true; // Token is nog geldig
+  } catch (err) {
+    console.error('[Auth] ensureValidSession error:', err);
+    return false;
+  }
+}
+
 const requestWithFallback = async (paths: string[], init: RequestInit, bases: string[] = BASE_URLS): Promise<Response> => {
   let lastError: Error | null = null;
   const targets = paths.flatMap((path) => bases.map((base) => ({
@@ -228,6 +287,29 @@ const withAutoRefresh = async (paths: string[], options: RequestInit = {}, bases
     throw new Error("Geen sessie gevonden. Log opnieuw in.");
   }
 
+  // Proactief refreshen als token binnenkort verloopt
+  if (isTokenExpiringSoon(accessToken, 300)) {
+    try {
+      console.log('[Auth] Access token verloopt binnenkort, refresh proactief...');
+      const refreshed = await refreshApi(refreshToken);
+      if (refreshed?.access_token && refreshed?.refresh_token) {
+        await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
+        console.log('[Auth] Proactieve refresh geslaagd');
+        // Gebruik nieuwe token voor het verzoek
+        return await requestWithFallback(paths, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${refreshed.access_token}`,
+          },
+        }, bases);
+      }
+    } catch (err: any) {
+      console.warn('[Auth] Proactieve refresh mislukt, probeer met huidige token:', err?.message);
+      // Fall through naar normale flow
+    }
+  }
+
   const baseHeaders = (options.headers as Record<string, string> | undefined) || {};
   const headersWithAuth = {
     ...baseHeaders,
@@ -243,17 +325,23 @@ const withAutoRefresh = async (paths: string[], options: RequestInit = {}, bases
   let res = await attempt(accessToken);
 
   if (res.status === 401) {
-    // probeer refresh
-    const refreshed = await refreshApi(refreshToken);
-    if (!refreshed?.access_token || !refreshed?.refresh_token) {
+    // Reactief refresh als 401
+    try {
+      console.log('[Auth] 401 ontvangen, probeer refresh...');
+      const refreshed = await refreshApi(refreshToken);
+      if (!refreshed?.access_token || !refreshed?.refresh_token) {
+        await clearAuthToken();
+        throw new Error("Sessie verlopen. Log opnieuw in.");
+      }
+      await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
+      res = await attempt(refreshed.access_token);
+      if (res.status === 401) {
+        await clearAuthToken();
+        throw new Error("Sessie verlopen. Log opnieuw in.");
+      }
+    } catch (err: any) {
       await clearAuthToken();
-      throw new Error("Sessie verlopen. Log opnieuw in.");
-    }
-    await saveAuthTokens(refreshed.access_token, refreshed.refresh_token);
-    res = await attempt(refreshed.access_token);
-    if (res.status === 401) {
-      await clearAuthToken();
-      throw new Error("Sessie verlopen. Log opnieuw in.");
+      throw new Error(err?.message || "Sessie verlopen. Log opnieuw in.");
     }
   }
 
@@ -483,6 +571,82 @@ export async function getUserById(userId: number): Promise<UserModel> {
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
+}
+
+export async function searchUsers(query: string): Promise<UserModel[]> {
+  if (!query || query.trim().length === 0) {
+    return [];
+  }
+  
+  const searchTerm = query.trim().toLowerCase();
+  
+  try {
+    // Strategie 1: Probeer het search endpoint (als backend dit heeft toegevoegd)
+    const searchEndpoint = `/api/users/search?username=${encodeURIComponent(query.trim())}`;
+    const fallbackSearchEndpoint = `/users/search?username=${encodeURIComponent(query.trim())}`;
+    
+    const res = await withAutoRefresh(
+      [searchEndpoint, fallbackSearchEndpoint],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    
+    if (res.ok) {
+      const text = await res.text();
+      if (!text) return [];
+      const users = JSON.parse(text);
+      return Array.isArray(users) ? users : [];
+    }
+    
+    // Als 404, probeer strategie 2
+    if (res.status !== 404) {
+      throw new Error(await parseErrorMessage(res));
+    }
+  } catch (err: any) {
+    // Als het niet een netwerk error is, probeer fallback
+    if (!err?.message?.toLowerCase().includes('404')) {
+      console.error('[searchUsers] Search endpoint error:', err);
+    }
+  }
+  
+  // Strategie 2: Probeer alle gebruikers op te halen en filter client-side
+  try {
+    console.log('[searchUsers] Search endpoint niet gevonden, probeer lijst alle gebruikers op te halen');
+    
+    const listRes = await withAutoRefresh(
+      ['/api/users', '/users', '/api/users/list', '/users/list'],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    
+    if (listRes.ok) {
+      const text = await listRes.text();
+      if (!text) return [];
+      
+      const allUsers = JSON.parse(text);
+      if (!Array.isArray(allUsers)) return [];
+      
+      // Filter client-side op first_name en last_name
+      return allUsers.filter((user: UserModel) => {
+        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
+        const firstName = (user.first_name || '').toLowerCase();
+        const lastName = (user.last_name || '').toLowerCase();
+        
+        return fullName.includes(searchTerm) || 
+               firstName.includes(searchTerm) || 
+               lastName.includes(searchTerm);
+      });
+    }
+  } catch (listErr: any) {
+    console.error('[searchUsers] Kan geen gebruikerslijst ophalen:', listErr);
+  }
+  
+  // Beide strategieën gefaald
+  throw new Error('Zoekfunctie niet beschikbaar. De backend heeft geen /users/search of /users lijst endpoint.\n\nVraag de backend developer om een van deze endpoints toe te voegen.');
 }
 
 export async function fetchConversation(withUserId: number): Promise<ChatMessage[]> {

@@ -1,7 +1,7 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { getPitches, subscribe } from '@/constants/pitch-store';
-import { getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
+import { ensureValidSession, getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
 import { getMyVideos, type FeedItem } from '@/hooks/useVideoApi';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -64,6 +64,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const loadProfile = async () => {
+      // Valideer sessie eerst
+      const isValid = await ensureValidSession();
+      if (!isValid) {
+        setProfileError('Sessie verlopen. Log opnieuw in.');
+        setProfileLoading(false);
+        router.replace('/login');
+        return;
+      }
+
       setProfileLoading(true);
       try {
         const data = await getCurrentUserProfile();
