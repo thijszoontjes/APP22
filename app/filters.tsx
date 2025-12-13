@@ -4,8 +4,8 @@ import AppHeader from '@/components/app-header';
 import { getUserInterests, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -102,19 +102,22 @@ export default function FiltersPage() {
   }, []);
 
   const collectCategoriesFromApi = useCallback((data: UserInterestsInput) => {
-    const rawInterests = (data as any)?.interests ?? (data as any)?.categories ?? [];
-    const fromArray = Array.isArray(rawInterests)
-      ? rawInterests
-          .map(normalizeCategoryValue)
-          .filter((v): v is string => !!v)
+    console.log('[FiltersPage] collectCategoriesFromApi input:', data);
+    
+    // Collect from interests array
+    const fromArray = Array.isArray(data?.interests) 
+      ? data.interests.filter((key): key is string => typeof key === 'string')
       : [];
 
+    // Collect from boolean flags
     const fromBooleans = CATEGORY_OPTIONS.filter(opt =>
       normalizeBoolean(data?.[opt.key as keyof UserInterestsInput]),
     ).map(opt => opt.key);
 
-    return Array.from(new Set([...fromArray, ...fromBooleans]));
-  }, [normalizeCategoryValue, normalizeBoolean]);
+    const result = Array.from(new Set([...fromArray, ...fromBooleans]));
+    console.log('[FiltersPage] Collected categories:', result);
+    return result;
+  }, [normalizeBoolean]);
 
   const checkLocationPermission = useCallback(async () => {
     try {

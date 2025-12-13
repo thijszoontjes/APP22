@@ -425,7 +425,7 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
 export async function getUserInterests(): Promise<UserInterestsInput> {
   try {
     const res = await withAutoRefresh(
-      ["/api/users/me/interests", "/users/me/interests"],
+      ["/users/me/interests", "/api/users/me/interests"],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -437,7 +437,42 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
       }
       throw new Error(await parseErrorMessage(res));
     }
-    return await res.json();
+    
+    const data = await res.json();
+    console.log('[getUserInterests] API response:', JSON.stringify(data, null, 2));
+    
+    // Map IDs back to category keys
+    const ID_TO_CATEGORY_MAP: Record<number, string> = {
+      1: 'technology',
+      2: 'ict',
+      3: 'investing',
+      4: 'marketing',
+      5: 'media',
+      6: 'production',
+      7: 'education',
+    };
+    
+    // Parse the API response format
+    const result: UserInterestsInput = {};
+    
+    // Handle interests array from API (format: [{id, key, value}])
+    if (data.interests && Array.isArray(data.interests)) {
+      const activeInterests: string[] = [];
+      
+      data.interests.forEach((item: any) => {
+        const categoryKey = ID_TO_CATEGORY_MAP[item.id] || item.key;
+        if (categoryKey && item.value === true) {
+          activeInterests.push(categoryKey);
+          result[categoryKey as keyof UserInterestsInput] = true;
+        } else if (categoryKey) {
+          result[categoryKey as keyof UserInterestsInput] = false;
+        }
+      });
+      
+      result.interests = activeInterests;
+    }
+    
+    return result;
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
@@ -445,55 +480,63 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
 
 export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
   try {
-    const sanitizedPayload: UserInterestsInput = {};
+    // Map category keys to IDs (backend expects id-based format)
+    const CATEGORY_ID_MAP: Record<string, number> = {
+      'technology': 1,
+      'ict': 2,
+      'investing': 3,
+      'marketing': 4,
+      'media': 5,
+      'production': 6,
+      'education': 7,
+    };
 
-    Object.entries(payload).forEach(([key, value]) => {
-      if (value !== undefined) {
-        sanitizedPayload[key] = value;
-      }
-    });
-
-    // Zorg dat afstand in alle mogelijke sleutelvarianten meegestuurd wordt
-    if (sanitizedPayload.distance_km !== undefined) {
-      sanitizedPayload.distance = sanitizedPayload.distance_km;
-    }
-    if (sanitizedPayload.max_distance_km !== undefined) {
-      sanitizedPayload.max_distance = sanitizedPayload.max_distance_km;
-    }
+    // Collect selected categories from various sources
     const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
     const interestFlags = Object.entries(payload)
       .filter(([key, value]) => typeof value === "boolean" && value === true)
       .map(([key]) => key);
     const mergedInterests = Array.from(new Set([...interestArray, ...interestFlags]));
-    if (mergedInterests.length) {
-      sanitizedPayload.interests = mergedInterests;
-      sanitizedPayload.categories = mergedInterests;
-    }
+
+    // Convert to API format: array of {id, value} objects
+    const interestsForApi = Object.entries(CATEGORY_ID_MAP).map(([key, id]) => ({
+      id,
+      value: mergedInterests.includes(key),
+    }));
+
+    // Build the API payload according to Swagger spec
+    const apiPayload: any = {
+      interests: interestsForApi,
+    };
+
+    console.log('[updateUserInterests] Sending payload:', JSON.stringify(apiPayload, null, 2));
 
     const res = await withAutoRefresh(
-      ["/api/users/me/interests", "/users/me/interests"],
+      ["/users/me/interests", "/api/users/me/interests"],
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sanitizedPayload),
+        body: JSON.stringify(apiPayload),
       },
     );
     if (!res.ok) {
       if (res.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
       }
-      throw new Error(await parseErrorMessage(res));
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[updateUserInterests] API error:', errorMsg);
+      throw new Error(errorMsg);
     }
     // Sommige backends geven 204 No Content terug op een geslaagde update.
     if (res.status === 204) {
-      return sanitizedPayload;
+      return payload;
     }
     const text = await res.text();
-    if (!text) return sanitizedPayload;
+    if (!text) return payload;
     try {
       return JSON.parse(text);
     } catch {
-      return sanitizedPayload;
+      return payload;
     }
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
@@ -581,12 +624,14 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   const searchTerm = query.trim().toLowerCase();
   
   try {
-    // Strategie 1: Probeer het search endpoint (als backend dit heeft toegevoegd)
-    const searchEndpoint = `/api/users/search?username=${encodeURIComponent(query.trim())}`;
-    const fallbackSearchEndpoint = `/users/search?username=${encodeURIComponent(query.trim())}`;
+    // Probeer het search endpoint met verschillende mogelijke paden
+    const searchEndpoint = `/users/search?q=${encodeURIComponent(query.trim())}`;
+    const fallbackSearchEndpoint1 = `/api/users/search?q=${encodeURIComponent(query.trim())}`;
+    const fallbackSearchEndpoint2 = `/users/search?username=${encodeURIComponent(query.trim())}`;
+    const fallbackSearchEndpoint3 = `/api/users/search?username=${encodeURIComponent(query.trim())}`;
     
     const res = await withAutoRefresh(
-      [searchEndpoint, fallbackSearchEndpoint],
+      [searchEndpoint, fallbackSearchEndpoint1, fallbackSearchEndpoint2, fallbackSearchEndpoint3],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -596,8 +641,19 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
     if (res.ok) {
       const text = await res.text();
       if (!text) return [];
-      const users = JSON.parse(text);
-      return Array.isArray(users) ? users : [];
+      
+      const data = JSON.parse(text);
+      
+      // Controleer of de response in verschillende formaten komt
+      if (Array.isArray(data)) {
+        return data;
+      } else if (data.users && Array.isArray(data.users)) {
+        return data.users;
+      } else if (data.data && Array.isArray(data.data)) {
+        return data.data;
+      }
+      
+      return [];
     }
     
     // Als 404, probeer strategie 2
@@ -605,7 +661,7 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
       throw new Error(await parseErrorMessage(res));
     }
   } catch (err: any) {
-    // Als het niet een netwerk error is, probeer fallback
+    // Als het niet een 404 is, log het maar probeer fallback
     if (!err?.message?.toLowerCase().includes('404')) {
       console.error('[searchUsers] Search endpoint error:', err);
     }
@@ -616,7 +672,7 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
     console.log('[searchUsers] Search endpoint niet gevonden, probeer lijst alle gebruikers op te halen');
     
     const listRes = await withAutoRefresh(
-      ['/api/users', '/users', '/api/users/list', '/users/list'],
+      ['/users', '/api/users', '/users/list', '/api/users/list'],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -630,15 +686,17 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
       const allUsers = JSON.parse(text);
       if (!Array.isArray(allUsers)) return [];
       
-      // Filter client-side op first_name en last_name
+      // Filter client-side op first_name, last_name en email
       return allUsers.filter((user: UserModel) => {
         const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
         const firstName = (user.first_name || '').toLowerCase();
         const lastName = (user.last_name || '').toLowerCase();
+        const email = (user.email || '').toLowerCase();
         
         return fullName.includes(searchTerm) || 
                firstName.includes(searchTerm) || 
-               lastName.includes(searchTerm);
+               lastName.includes(searchTerm) ||
+               email.includes(searchTerm);
       });
     }
   } catch (listErr: any) {
