@@ -37,7 +37,7 @@ export interface UserModel {
   country?: string;
   email: string;
   first_name: string;
-  id?: number;
+  id?: string | number;  // Can be string (from backend) or number (parsed)
   is_blocked?: boolean;
   job_function?: string;
   keycloak_id?: string;
@@ -422,6 +422,63 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
   }
 }
 
+export async function getDiscoveryPreferences(): Promise<{ email: string; radius_km: number }> {
+  try {
+    const res = await withAutoRefresh(
+      ["/users/me/discovery-preferences", "/api/users/me/discovery-preferences"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    
+    const data = await res.json();
+    console.log('[getDiscoveryPreferences] API response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function updateDiscoveryPreferences(radius_km: number): Promise<{ email: string; radius_km: number }> {
+  try {
+    const apiPayload = { radius_km };
+
+    console.log('[updateDiscoveryPreferences] Sending payload:', JSON.stringify(apiPayload, null, 2));
+
+    const res = await withAutoRefresh(
+      ["/users/me/discovery-preferences", "/api/users/me/discovery-preferences"],
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
+      },
+    );
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[updateDiscoveryPreferences] API error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    const data = await res.json();
+    console.log('[updateDiscoveryPreferences] API response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
 export async function getUserInterests(): Promise<UserInterestsInput> {
   try {
     const res = await withAutoRefresh(
@@ -624,87 +681,148 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   const searchTerm = query.trim().toLowerCase();
   
   try {
-    // Probeer het search endpoint met verschillende mogelijke paden
-    const searchEndpoint = `/users/search?q=${encodeURIComponent(query.trim())}`;
-    const fallbackSearchEndpoint1 = `/api/users/search?q=${encodeURIComponent(query.trim())}`;
-    const fallbackSearchEndpoint2 = `/users/search?username=${encodeURIComponent(query.trim())}`;
-    const fallbackSearchEndpoint3 = `/api/users/search?username=${encodeURIComponent(query.trim())}`;
+    // Strategie 1: Probeer dedicated search endpoint
+    const searchEndpoints = [
+      `/users/search?q=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?q=${encodeURIComponent(query.trim())}`,
+      `/users/search?name=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?name=${encodeURIComponent(query.trim())}`,
+      `/users/search?email=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?email=${encodeURIComponent(query.trim())}`,
+    ];
     
-    const res = await withAutoRefresh(
-      [searchEndpoint, fallbackSearchEndpoint1, fallbackSearchEndpoint2, fallbackSearchEndpoint3],
-      {
+    try {
+      const res = await withAutoRefresh(searchEndpoints, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-      },
-    );
-    
-    if (res.ok) {
-      const text = await res.text();
-      if (!text) return [];
+      });
       
-      const data = JSON.parse(text);
-      
-      // Controleer of de response in verschillende formaten komt
-      if (Array.isArray(data)) {
-        return data;
-      } else if (data.users && Array.isArray(data.users)) {
-        return data.users;
-      } else if (data.data && Array.isArray(data.data)) {
-        return data.data;
+      if (res.ok) {
+        const text = await res.text();
+        if (!text) return [];
+        
+        const data = JSON.parse(text);
+        console.log('[searchUsers] Search response:', data);
+        
+        // Handle verschillende response formaten
+        if (Array.isArray(data)) {
+          return data;
+        } else if (data.users && Array.isArray(data.users)) {
+          return data.users;
+        } else if (data.data && Array.isArray(data.data)) {
+          return data.data;
+        } else if (data.results && Array.isArray(data.results)) {
+          return data.results;
+        }
+        
+        return [];
       }
       
-      return [];
+      // Check voor 503 Service Unavailable
+      if (res.status === 503) {
+        throw new Error('De zoekservice is tijdelijk niet beschikbaar. Probeer het over een paar minuten opnieuw.');
+      }
+      
+      // Als niet 404, gooi error
+      if (res.status !== 404) {
+        const errorMsg = await parseErrorMessage(res);
+        console.log('[searchUsers] Search endpoint returned error:', res.status, errorMsg);
+      }
+    } catch (searchErr: any) {
+      // Als het een 503 error is, gooi die door
+      if (searchErr?.message?.includes('503') || searchErr?.message?.includes('niet beschikbaar')) {
+        throw searchErr;
+      }
+      console.log('[searchUsers] Search endpoint not available or failed:', searchErr?.message);
+      // Continue naar strategie 2
     }
     
-    // Als 404, probeer strategie 2
-    if (res.status !== 404) {
-      throw new Error(await parseErrorMessage(res));
-    }
-  } catch (err: any) {
-    // Als het niet een 404 is, log het maar probeer fallback
-    if (!err?.message?.toLowerCase().includes('404')) {
-      console.error('[searchUsers] Search endpoint error:', err);
-    }
-  }
-  
-  // Strategie 2: Probeer alle gebruikers op te halen en filter client-side
-  try {
-    console.log('[searchUsers] Search endpoint niet gevonden, probeer lijst alle gebruikers op te halen');
+    // Strategie 2: Haal alle gebruikers op en filter client-side
+    console.log('[searchUsers] Trying to fetch all users and filter client-side');
     
-    const listRes = await withAutoRefresh(
-      ['/users', '/api/users', '/users/list', '/api/users/list'],
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    const listEndpoints = [
+      '/users',
+      '/api/users',
+      '/users/all',
+      '/api/users/all',
+      '/users/list',
+      '/api/users/list'
+    ];
+    
+    const listRes = await withAutoRefresh(listEndpoints, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
     
     if (listRes.ok) {
       const text = await listRes.text();
       if (!text) return [];
       
-      const allUsers = JSON.parse(text);
-      if (!Array.isArray(allUsers)) return [];
+      let allUsers;
+      try {
+        const parsed = JSON.parse(text);
+        // Handle verschillende response formaten
+        if (Array.isArray(parsed)) {
+          allUsers = parsed;
+        } else if (parsed.users && Array.isArray(parsed.users)) {
+          allUsers = parsed.users;
+        } else if (parsed.data && Array.isArray(parsed.data)) {
+          allUsers = parsed.data;
+        } else {
+          console.log('[searchUsers] Unexpected response format:', parsed);
+          return [];
+        }
+      } catch (parseErr) {
+        console.error('[searchUsers] Failed to parse response:', parseErr);
+        return [];
+      }
       
-      // Filter client-side op first_name, last_name en email
-      return allUsers.filter((user: UserModel) => {
+      console.log('[searchUsers] Got', allUsers.length, 'users, filtering...');
+      
+      // Filter client-side op first_name, last_name, email, job_function, sector
+      const filtered = allUsers.filter((user: UserModel) => {
         const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
         const firstName = (user.first_name || '').toLowerCase();
         const lastName = (user.last_name || '').toLowerCase();
         const email = (user.email || '').toLowerCase();
+        const jobFunction = (user.job_function || '').toLowerCase();
+        const sector = (user.sector || '').toLowerCase();
         
         return fullName.includes(searchTerm) || 
                firstName.includes(searchTerm) || 
                lastName.includes(searchTerm) ||
-               email.includes(searchTerm);
+               email.includes(searchTerm) ||
+               jobFunction.includes(searchTerm) ||
+               sector.includes(searchTerm);
       });
+      
+      console.log('[searchUsers] Filtered to', filtered.length, 'matching users');
+      return filtered;
     }
-  } catch (listErr: any) {
-    console.error('[searchUsers] Kan geen gebruikerslijst ophalen:', listErr);
+    
+    // Check voor 503 errors
+    if (listRes.status === 503) {
+      throw new Error('De gebruikersservice is tijdelijk overbelast. Probeer het over een paar minuten opnieuw.');
+    }
+    
+    // Als list endpoint ook niet werkt
+    const listError = await parseErrorMessage(listRes);
+    console.error('[searchUsers] List endpoint also failed:', listRes.status, listError);
+    
+    if (listRes.status >= 500) {
+      throw new Error('De server heeft problemen. Probeer het later opnieuw.');
+    }
+    
+    throw new Error(`Kon gebruikers niet ophalen (status ${listRes.status})`);
+    
+  } catch (err: any) {
+    console.error('[searchUsers] All strategies failed:', err);
+    // Geef specifieke foutmelding voor 503
+    if (err?.message?.includes('503') || err?.message?.includes('overbelast') || err?.message?.includes('niet beschikbaar')) {
+      throw err;
+    }
+    throw new Error(err?.message || 'Zoeken mislukt. De server is mogelijk tijdelijk niet bereikbaar.');
   }
-  
-  // Beide strategieën gefaald
-  throw new Error('Zoekfunctie niet beschikbaar. De backend heeft geen /users/search of /users lijst endpoint.\n\nVraag de backend developer om een van deze endpoints toe te voegen.');
 }
 
 export async function fetchConversation(withUserId: number): Promise<ChatMessage[]> {

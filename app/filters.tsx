@@ -1,7 +1,7 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
 import AppHeader from '@/components/app-header';
-import { getUserInterests, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
+import { getDiscoveryPreferences, getUserInterests, updateDiscoveryPreferences, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -159,6 +159,7 @@ export default function FiltersPage() {
     setLoadingFilters(true);
     setErrorMessage('');
     try {
+      // Load interests
       const data = await getUserInterests();
       const activeCategories = collectCategoriesFromApi(data);
       if (activeCategories.length) {
@@ -169,26 +170,26 @@ export default function FiltersPage() {
           setSelectedCategories(cached.categories);
         }
       }
-      const distanceRaw = (
-        data?.distance_km ??
-        data?.max_distance_km ??
-        (data as any)?.distance ??
-        (data as any)?.max_distance ??
-        (data as any)?.distanceInKm ??
-        (data as any)?.radius ??
-        (data as any)?.radius_km
-      ) as number | string | undefined;
-      const distance = typeof distanceRaw === 'string' ? parseFloat(distanceRaw) : distanceRaw;
-      if (Number.isFinite(distance as number)) {
-        const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(distance)));
-        setSliderValue(clamped);
-      } else if (!cachedLoaded) {
-        const cached = await readCachedFilters();
-        if (Number.isFinite(cached?.distance as number)) {
-          const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
+      
+      // Load discovery preferences (radius_km)
+      try {
+        const discoveryPrefs = await getDiscoveryPreferences();
+        if (discoveryPrefs?.radius_km && Number.isFinite(discoveryPrefs.radius_km)) {
+          const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(discoveryPrefs.radius_km)));
           setSliderValue(clamped);
         }
+      } catch (discoveryErr: any) {
+        console.log('[FiltersPage] Could not load discovery preferences:', discoveryErr?.message);
+        // Fall back to cached value if API fails
+        if (!cachedLoaded) {
+          const cached = await readCachedFilters();
+          if (Number.isFinite(cached?.distance as number)) {
+            const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
+            setSliderValue(clamped);
+          }
+        }
       }
+      
       setCachedLoaded(true);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Kon filters niet laden');
@@ -266,24 +267,27 @@ export default function FiltersPage() {
         setSaving(false);
         return;
       }
-      const payload: UserInterestsInput = {
-        distance_km: sliderValue,
-        max_distance_km: sliderValue,
-        distance: sliderValue,
+      
+      // Save interests
+      const interestsPayload: UserInterestsInput = {
         interests: selectedCategories,
         categories: selectedCategories,
-        location_permission: true,
       };
       CATEGORY_OPTIONS.forEach(opt => {
-        payload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
+        interestsPayload[opt.key as keyof UserInterestsInput] = selectedCategories.includes(opt.key);
       });
       // Zorg dat niet-geselecteerde categorieen expliciet false worden meegestuurd
       CATEGORY_OPTIONS.forEach(opt => {
-        if (payload[opt.key as keyof UserInterestsInput] === undefined) {
-          payload[opt.key as keyof UserInterestsInput] = false;
+        if (interestsPayload[opt.key as keyof UserInterestsInput] === undefined) {
+          interestsPayload[opt.key as keyof UserInterestsInput] = false;
         }
       });
-      await updateUserInterests(payload);
+      
+      await updateUserInterests(interestsPayload);
+      
+      // Save discovery preferences (radius_km) separately
+      await updateDiscoveryPreferences(sliderValue);
+      
       await writeCachedFilters(selectedCategories, sliderValue);
       setStatusMessage('Filters opgeslagen');
       await loadFilters(); // herladen zodat UI direct de opgeslagen waarden laat zien

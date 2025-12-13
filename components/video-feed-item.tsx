@@ -89,18 +89,32 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   useEffect(() => {
     const shouldPlay = !!videoSource && isActive && isScreenFocused;
     if (shouldPlay) {
-      player.muted = false;
-      player.play();
+      try {
+        player.muted = false;
+        player.play();
+      } catch (error) {
+        console.log('[VideoFeedItem] Error playing video:', error);
+      }
     } else {
-      player.muted = true;
-      player.pause();
+      try {
+        player.muted = true;
+        player.pause();
+      } catch (error) {
+        // Ignore pause errors when component is unmounting
+        console.log('[VideoFeedItem] Error pausing video (likely unmounting):', error);
+      }
     }
   }, [isActive, player, videoSource, isScreenFocused]);
 
   useEffect(() => {
     return () => {
       // Ensure audio stops when the card unmounts (e.g., when scrolled far away)
-      player.pause();
+      try {
+        player.pause();
+      } catch (error) {
+        // Ignore errors during unmount
+        console.log('[VideoFeedItem] Error pausing on unmount (expected):', error);
+      }
     };
   }, [player]);
 

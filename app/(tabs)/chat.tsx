@@ -83,6 +83,11 @@ export default function ChatPage() {
       const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       const last = sorted[sorted.length - 1];
 
+      // Skip chats without any messages (placeholder data)
+      if (!last) {
+        return null;
+      }
+
       return {
         id: contact.userId,
         name,
@@ -92,14 +97,8 @@ export default function ChatPage() {
         initials: deriveInitials(name),
       };
     } catch {
-      return {
-        id: contact.userId,
-        name: contact.name || `Gebruiker #${contact.userId}`,
-        message: 'Nog geen berichten',
-        time: '',
-        lastAt: 0,
-        initials: deriveInitials(contact.name || `Gebruiker #${contact.userId}`),
-      };
+      // Skip chats that fail to load (likely placeholder data)
+      return null;
     }
   }, []);
 
@@ -124,8 +123,27 @@ export default function ChatPage() {
       } else {
         const previews = await Promise.all(saved.map(fetchPreview));
         const filtered = previews.filter(Boolean) as ChatListItem[];
+        
+        // Remove chats without messages from storage
+        const validUserIds = filtered.map(chat => chat.id);
+        const validContacts = saved.filter(contact => validUserIds.includes(contact.userId));
+        
+        if (validContacts.length !== saved.length) {
+          // Update storage to only keep valid chats
+          try {
+            await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(validContacts));
+            console.log('[ChatPage] Cleaned up', saved.length - validContacts.length, 'empty chats from storage');
+          } catch {
+            // best-effort cleanup
+          }
+        }
+        
         filtered.sort((a, b) => b.lastAt - a.lastAt);
         setChats(filtered);
+        
+        if (filtered.length === 0) {
+          setError('Geen actieve gesprekken gevonden. Start een chat met het ID-veld bovenaan.');
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Kon chats niet laden.');
