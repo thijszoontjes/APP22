@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { BASE_URLS, CHAT_BASE_URLS } from "../constants/api";
+import { BASE_URLS, CHAT_BASE_URLS, NOTIFICATION_BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface LoginRequest {
@@ -80,6 +80,28 @@ export interface ChatMessage {
   receiver_id: number;
   sender_id: number;
 }
+
+export interface NotificationRequest {
+  email: string;
+  type: string;
+  message: string;
+  title?: string;
+}
+
+export interface NotificationResponse {
+  status?: "scheduled" | "no_preferences" | "no_notification" | string;
+  channels?: string[];
+  message?: string;
+  error?: string;
+}
+
+let searchEndpointMissingLogged = false;
+const logMissingSearchEndpointOnce = () => {
+  if (!searchEndpointMissingLogged) {
+    console.warn("[searchUsers] Geen /users/search endpoint gevonden in de huidige backend (swagger mist deze ook). Vallen terug op volledige lijst + client-side filter.");
+    searchEndpointMissingLogged = true;
+  }
+};
 
 const REQUEST_TIMEOUT_MS = 6000;
 const RETRY_STATUSES = new Set([404, 502, 503, 504]);
@@ -723,8 +745,9 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
         throw new Error('De zoekservice is tijdelijk niet beschikbaar. Probeer het over een paar minuten opnieuw.');
       }
       
-      // Als niet 404, gooi error
-      if (res.status !== 404) {
+      if (res.status === 404) {
+        logMissingSearchEndpointOnce();
+      } else {
         const errorMsg = await parseErrorMessage(res);
         console.log('[searchUsers] Search endpoint returned error:', res.status, errorMsg);
       }
@@ -732,6 +755,9 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
       // Als het een 503 error is, gooi die door
       if (searchErr?.message?.includes('503') || searchErr?.message?.includes('niet beschikbaar')) {
         throw searchErr;
+      }
+      if (String(searchErr?.message || '').includes('404')) {
+        logMissingSearchEndpointOnce();
       }
       console.log('[searchUsers] Search endpoint not available or failed:', searchErr?.message);
       // Continue naar strategie 2
@@ -901,6 +927,57 @@ export async function sendChatMessage(payload: SendMessageRequest): Promise<Chat
     }
     return await res.json();
   } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function sendNotification(payload: NotificationRequest): Promise<NotificationResponse> {
+  if (!payload?.email || !payload?.type || !payload?.message) {
+    throw new Error("Notificatie mist verplichte velden (email, type, message).");
+  }
+
+  const requestBody = {
+    email: payload.email,
+    type: payload.type,
+    message: payload.message,
+    ...(payload.title ? { title: payload.title } : {}),
+  };
+
+  console.log("[NotificationAPI] Verstuur notificatie:", JSON.stringify(requestBody));
+
+  try {
+    const res = await requestWithFallback(
+      ["/notify"],
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      },
+      NOTIFICATION_BASE_URLS,
+    );
+
+    const text = await res.text();
+    console.log("[NotificationAPI] Response", res.status, text || "<leeg>");
+
+    const parseJsonSafe = () => {
+      try {
+        return text ? JSON.parse(text) : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
+    if (!res.ok) {
+      const parsed = parseJsonSafe();
+      const messageFromBody = typeof parsed === "string"
+        ? parsed
+        : parsed?.error || parsed?.message || text || `Notificatie versturen mislukt (status ${res.status})`;
+      throw new Error(messageFromBody);
+    }
+
+    return parseJsonSafe() || { status: "unknown", message: text || "Lege respons" };
+  } catch (err: any) {
+    console.warn("[NotificationAPI] Notificatie call faalde:", err?.message || err);
     throw new Error(normalizeNetworkError(err));
   }
 }

@@ -12,6 +12,10 @@ const DEFAULT_VIDEO_BASE_URL = "https://videoservice-videoservice-projectgroup1-
 const SECONDARY_VIDEO_BASE_URL = "https://videoservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 const SECONDARY_VIDEO_BASE_URL_HTTP = "http://videoservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 
+const DEFAULT_NOTIFICATION_BASE_URL = "http://localhost:8086";
+const SECONDARY_NOTIFICATION_BASE_URL = "https://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_NOTIFICATION_BASE_URL_HTTP = "http://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+
 const stripTrailingSlash = (url: string) => url.replace(/\/+$/, "");
 
 // Probeer eerst de env-var, daarna de bekende routes (oude + nieuwe DNS zonder dubbele service-naam).
@@ -62,3 +66,18 @@ export const VIDEO_BASE_URLS = Array.from(
 );
 
 export const VIDEO_BASE_URL = VIDEO_BASE_URLS[0] || DEFAULT_VIDEO_BASE_URL;
+
+export const NOTIFICATION_BASE_URLS = Array.from(
+  new Set(
+    [
+      process.env.EXPO_PUBLIC_NOTIFICATION_URL,
+      SECONDARY_NOTIFICATION_BASE_URL,
+      DEFAULT_NOTIFICATION_BASE_URL,
+      SECONDARY_NOTIFICATION_BASE_URL_HTTP,
+    ]
+      .filter(isString)
+      .map((url) => stripTrailingSlash(url)),
+  ),
+);
+
+export const NOTIFICATION_BASE_URL = NOTIFICATION_BASE_URLS[0] || DEFAULT_NOTIFICATION_BASE_URL;

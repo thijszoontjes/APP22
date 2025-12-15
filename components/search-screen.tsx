@@ -75,14 +75,19 @@ export default function SearchScreen() {
     }
     
     const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Gebruiker ${user.id}`;
-    
+    const params: Record<string, string> = {
+      userId: String(user.id),
+      userName: userName,
+    };
+
+    if (user.email) {
+      params.userEmail = user.email;
+    }
+
     // Navigeer naar DM scherm
     router.push({
       pathname: '/dm',
-      params: {
-        userId: String(user.id),
-        userName: userName,
-      },
+      params,
     });
   };
 
@@ -358,4 +363,3 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 });
-
