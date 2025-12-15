@@ -31,7 +31,10 @@ export default function DMChatPage() {
   const router = useRouter();
   const navigation = useNavigation();
   const { userName = 'Maarten Kuip', userId: userIdParam, userEmail } = useLocalSearchParams<{ userName?: string; userId?: string; userEmail?: string | string[] }>();
-  const userId = useMemo(() => Number(userIdParam), [userIdParam]);
+  const userId = useMemo(() => {
+    if (Array.isArray(userIdParam)) return userIdParam[0] || '';
+    return userIdParam || '';
+  }, [userIdParam]);
   const initialEmail = useMemo(() => Array.isArray(userEmail) ? userEmail[0] : userEmail, [userEmail]);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -62,7 +65,7 @@ export default function DMChatPage() {
   }, [userId]);
 
   useEffect(() => {
-    if (!Number.isFinite(userId)) {
+    if (!userId) {
       setContactEmail(null);
       return;
     }
@@ -100,7 +103,7 @@ export default function DMChatPage() {
   };
 
   const loadConversation = async () => {
-    if (!Number.isFinite(userId)) {
+    if (!userId) {
       setError('Geen geldig gebruikers-id meegegeven voor deze chat.');
       setLoading(false);
       setRefreshing(false);
@@ -149,14 +152,14 @@ export default function DMChatPage() {
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-    if (!Number.isFinite(userId)) {
+    if (!userId) {
       setError('Geen ontvanger gevonden om een bericht naar te sturen.');
       return;
     }
     setSending(true);
     const now = new Date();
     try {
-      const sent = await sendChatMessage({ receiver_id: userId, content: trimmed });
+      const sent = await sendChatMessage({ receiver_id: userId, receiver_email: contactEmail || initialEmail || undefined, content: trimmed });
       const uiMessage: ChatMessage = mapToUiMessage(sent, userId, 'me') || {
         id: sent?.id || `${Date.now()}`,
         text: trimmed,
@@ -267,10 +270,10 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: number, forceFrom?: 'me' | 'them'): ChatMessage {
-  const partnerId = withUserId;
+function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: string, forceFrom?: 'me' | 'them'): ChatMessage {
+  const partnerId = String(withUserId);
   const created = new Date(apiMessage?.created_at || Date.now());
-  const from: 'me' | 'them' = forceFrom || (apiMessage.sender_id === partnerId ? 'them' : 'me');
+  const from: 'me' | 'them' = forceFrom || (String(apiMessage.sender_id) === partnerId ? 'them' : 'me');
   return {
     id: apiMessage.id,
     text: apiMessage.content || '',

@@ -70,15 +70,16 @@ export interface UserInterestsInput {
 
 export interface SendMessageRequest {
   content: string;
-  receiver_id: number;
+  receiver_id: string;
+  receiver_email?: string;
 }
 
 export interface ChatMessage {
   content: string;
   created_at: string;
-  id: number;
-  receiver_id: number;
-  sender_id: number;
+  id: string | number;
+  receiver_id: string | number;
+  sender_id: string | number;
 }
 
 export interface NotificationRequest {
@@ -670,13 +671,15 @@ export async function getCurrentUserProfile(): Promise<UserModel> {
   }
 }
 
-export async function getUserById(userId: number): Promise<UserModel> {
-  if (!Number.isFinite(userId)) {
+export async function getUserById(userId: string | number): Promise<UserModel> {
+  const id = String(userId || "").trim();
+  if (!id) {
     throw new Error("Ongeldig gebruikers-id.");
   }
+  const encodedId = encodeURIComponent(id);
   try {
     const res = await withAutoRefresh(
-      [`/api/users/${userId}`, `/users/${userId}`],
+      [`/api/users/${encodedId}`, `/users/${encodedId}`],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -851,13 +854,14 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   }
 }
 
-export async function fetchConversation(withUserId: number): Promise<ChatMessage[]> {
-  if (!Number.isFinite(withUserId)) {
+export async function fetchConversation(withUserId: string | number): Promise<ChatMessage[]> {
+  const userId = String(withUserId || "").trim();
+  if (!userId) {
     throw new Error("Ongeldig gebruikers-id om mee te chatten.");
   }
   try {
     const res = await withAutoRefresh(
-      [`/chat/messages?with=${encodeURIComponent(withUserId)}`],
+      [`/chat/messages?with=${encodeURIComponent(userId)}`],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -912,13 +916,21 @@ export async function sendChatMessage(payload: SendMessageRequest): Promise<Chat
   if (!payload?.content || !payload.receiver_id) {
     throw new Error("Bericht en ontvanger zijn verplicht.");
   }
+  const receiverId = String(payload.receiver_id || "").trim();
+  if (!receiverId) {
+    throw new Error("Ongeldig ontvanger-id.");
+  }
   try {
+    const body: any = { ...payload, receiver_id: receiverId };
+    if (!payload.receiver_email) {
+      delete body.receiver_email;
+    }
     const res = await withAutoRefresh(
       ["/chat/send"],
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       },
       CHAT_BASE_URLS,
     );

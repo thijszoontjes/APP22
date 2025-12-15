@@ -208,6 +208,12 @@ export default function ProfilePage() {
         <Text style={styles.profileDetails}>
           {profile?.email || 'Anna01@gmail.com'}
         </Text>
+        {profile?.id ? (
+          <View style={styles.uuidBadge}>
+            <Text style={styles.uuidLabel}>Jouw gebruikers-ID (UUID)</Text>
+            <Text style={styles.uuidValue}>{profile.id}</Text>
+          </View>
+        ) : null}
         {!!profileError && (
           <Text style={[styles.profileDetails, { color: '#c1121f' }]}>
             {profileError}
@@ -350,6 +356,29 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     textAlign: 'center',
     width: '100%',
+  },
+  uuidBadge: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E4E4E4',
+    width: '90%',
+  },
+  uuidLabel: {
+    fontSize: 12,
+    color: '#6a6a6a',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  uuidValue: {
+    fontSize: 13,
+    color: '#1A2233',
+    textAlign: 'center',
+    fontWeight: '700',
   },
   tabContentContainer: {
     alignItems: 'center',
