@@ -1,8 +1,8 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import AppHeader from '@/components/app-header';
-import { fetchConversation, sendChatMessage, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
+import { fetchConversation, getUserById, sendChatMessage, sendNotification, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -30,14 +30,20 @@ type ChatMessage = {
 export default function DMChatPage() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { userName = 'Maarten Kuip', userId: userIdParam } = useLocalSearchParams<{ userName?: string; userId?: string }>();
-  const userId = useMemo(() => Number(userIdParam), [userIdParam]);
+  const { userName = 'Maarten Kuip', userId: userIdParam, userEmail } = useLocalSearchParams<{ userName?: string; userId?: string; userEmail?: string | string[] }>();
+  const userId = useMemo(() => {
+    if (Array.isArray(userIdParam)) return userIdParam[0] || '';
+    return userIdParam || '';
+  }, [userIdParam]);
+  const initialEmail = useMemo(() => Array.isArray(userEmail) ? userEmail[0] : userEmail, [userEmail]);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [contactEmail, setContactEmail] = useState<string | null>(initialEmail || null);
+  const [contactName, setContactName] = useState<string | undefined>(userName);
   const scrollRef = useRef<ScrollView>(null);
 
   const dayLabel = useMemo(() => {
@@ -58,6 +64,38 @@ export default function DMChatPage() {
     loadConversation();
   }, [userId]);
 
+  useEffect(() => {
+    if (!userId) {
+      setContactEmail(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadContact = async () => {
+      try {
+        const profile = await getUserById(userId);
+        if (cancelled) return;
+        setContactEmail(profile.email || null);
+        const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+        if (profileName) {
+          setContactName(profileName);
+        }
+      } catch (err: any) {
+        console.log('[DM] Kon ontvanger niet laden voor notificaties:', err?.message || err);
+        setContactEmail(null);
+      }
+    };
+
+    // Alleen ophalen als we nog geen e-mail hebben
+    if (!contactEmail) {
+      loadContact();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contactEmail, userId]);
+
   const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollToEnd({ animated });
@@ -65,7 +103,7 @@ export default function DMChatPage() {
   };
 
   const loadConversation = async () => {
-    if (!Number.isFinite(userId)) {
+    if (!userId) {
       setError('Geen geldig gebruikers-id meegegeven voor deze chat.');
       setLoading(false);
       setRefreshing(false);
@@ -88,17 +126,40 @@ export default function DMChatPage() {
     }
   };
 
+  const triggerNotification = useCallback((messageText: string) => {
+    if (!contactEmail) {
+      console.log('[DM] Sla notificatie over: geen e-mail voor ontvanger beschikbaar.');
+      return;
+    }
+
+    const title = `Nieuw bericht van ${contactName || 'een gebruiker'}`;
+    const payload = {
+      email: contactEmail,
+      type: 'chat_message',
+      title,
+      message: messageText,
+    };
+
+    sendNotification(payload)
+      .then((res) => {
+        console.log('[DM] Notificatie verstuurd:', res);
+      })
+      .catch((notifyErr) => {
+        console.warn('[DM] Notificatie versturen mislukt:', notifyErr?.message || notifyErr);
+      });
+  }, [contactEmail, contactName]);
+
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-    if (!Number.isFinite(userId)) {
+    if (!userId) {
       setError('Geen ontvanger gevonden om een bericht naar te sturen.');
       return;
     }
     setSending(true);
     const now = new Date();
     try {
-      const sent = await sendChatMessage({ receiver_id: userId, content: trimmed });
+      const sent = await sendChatMessage({ receiver_id: userId, receiver_email: contactEmail || initialEmail || undefined, content: trimmed });
       const uiMessage: ChatMessage = mapToUiMessage(sent, userId, 'me') || {
         id: sent?.id || `${Date.now()}`,
         text: trimmed,
@@ -108,6 +169,7 @@ export default function DMChatPage() {
       setMessages((prev) => [...prev, uiMessage]);
       setInput('');
       scrollToBottom(true);
+      triggerNotification(trimmed);
     } catch (err: any) {
       setError(err?.message || 'Versturen mislukt.');
     } finally {
@@ -118,7 +180,7 @@ export default function DMChatPage() {
   return (
     <View style={styles.container}>
       <AppHeader
-        title={userName}
+        title={contactName || userName}
         leading={
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
             <ArrowBackSvg width={24} height={24} />
@@ -208,10 +270,10 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: number, forceFrom?: 'me' | 'them'): ChatMessage {
-  const partnerId = withUserId;
+function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: string, forceFrom?: 'me' | 'them'): ChatMessage {
+  const partnerId = String(withUserId);
   const created = new Date(apiMessage?.created_at || Date.now());
-  const from: 'me' | 'them' = forceFrom || (apiMessage.sender_id === partnerId ? 'them' : 'me');
+  const from: 'me' | 'them' = forceFrom || (String(apiMessage.sender_id) === partnerId ? 'them' : 'me');
   return {
     id: apiMessage.id,
     text: apiMessage.content || '',

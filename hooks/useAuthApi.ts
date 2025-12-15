@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { BASE_URLS, CHAT_BASE_URLS } from "../constants/api";
+import { BASE_URLS, CHAT_BASE_URLS, NOTIFICATION_BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 
 export interface LoginRequest {
@@ -37,7 +37,7 @@ export interface UserModel {
   country?: string;
   email: string;
   first_name: string;
-  id?: number;
+  id?: string | number;  // Can be string (from backend) or number (parsed)
   is_blocked?: boolean;
   job_function?: string;
   keycloak_id?: string;
@@ -70,16 +70,39 @@ export interface UserInterestsInput {
 
 export interface SendMessageRequest {
   content: string;
-  receiver_id: number;
+  receiver_id: string;
+  receiver_email?: string;
 }
 
 export interface ChatMessage {
   content: string;
   created_at: string;
-  id: number;
-  receiver_id: number;
-  sender_id: number;
+  id: string | number;
+  receiver_id: string | number;
+  sender_id: string | number;
 }
+
+export interface NotificationRequest {
+  email: string;
+  type: string;
+  message: string;
+  title?: string;
+}
+
+export interface NotificationResponse {
+  status?: "scheduled" | "no_preferences" | "no_notification" | string;
+  channels?: string[];
+  message?: string;
+  error?: string;
+}
+
+let searchEndpointMissingLogged = false;
+const logMissingSearchEndpointOnce = () => {
+  if (!searchEndpointMissingLogged) {
+    console.warn("[searchUsers] Geen /users/search endpoint gevonden in de huidige backend (swagger mist deze ook). Vallen terug op volledige lijst + client-side filter.");
+    searchEndpointMissingLogged = true;
+  }
+};
 
 const REQUEST_TIMEOUT_MS = 6000;
 const RETRY_STATUSES = new Set([404, 502, 503, 504]);
@@ -422,10 +445,10 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
   }
 }
 
-export async function getUserInterests(): Promise<UserInterestsInput> {
+export async function getDiscoveryPreferences(): Promise<{ email: string; radius_km: number }> {
   try {
     const res = await withAutoRefresh(
-      ["/api/users/me/interests", "/users/me/interests"],
+      ["/users/me/discovery-preferences", "/api/users/me/discovery-preferences"],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -437,45 +460,55 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
       }
       throw new Error(await parseErrorMessage(res));
     }
-    return await res.json();
+    
+    const data = await res.json();
+    console.log('[getDiscoveryPreferences] API response:', JSON.stringify(data, null, 2));
+    
+    return data;
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
 }
 
-export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
+export async function updateDiscoveryPreferences(radius_km: number): Promise<{ email: string; radius_km: number }> {
   try {
-    const sanitizedPayload: UserInterestsInput = {};
+    const apiPayload = { radius_km };
 
-    Object.entries(payload).forEach(([key, value]) => {
-      if (value !== undefined) {
-        sanitizedPayload[key] = value;
-      }
-    });
-
-    // Zorg dat afstand in alle mogelijke sleutelvarianten meegestuurd wordt
-    if (sanitizedPayload.distance_km !== undefined) {
-      sanitizedPayload.distance = sanitizedPayload.distance_km;
-    }
-    if (sanitizedPayload.max_distance_km !== undefined) {
-      sanitizedPayload.max_distance = sanitizedPayload.max_distance_km;
-    }
-    const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
-    const interestFlags = Object.entries(payload)
-      .filter(([key, value]) => typeof value === "boolean" && value === true)
-      .map(([key]) => key);
-    const mergedInterests = Array.from(new Set([...interestArray, ...interestFlags]));
-    if (mergedInterests.length) {
-      sanitizedPayload.interests = mergedInterests;
-      sanitizedPayload.categories = mergedInterests;
-    }
+    console.log('[updateDiscoveryPreferences] Sending payload:', JSON.stringify(apiPayload, null, 2));
 
     const res = await withAutoRefresh(
-      ["/api/users/me/interests", "/users/me/interests"],
+      ["/users/me/discovery-preferences", "/api/users/me/discovery-preferences"],
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sanitizedPayload),
+        body: JSON.stringify(apiPayload),
+      },
+    );
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[updateDiscoveryPreferences] API error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    const data = await res.json();
+    console.log('[updateDiscoveryPreferences] API response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function getUserInterests(): Promise<UserInterestsInput> {
+  try {
+    const res = await withAutoRefresh(
+      ["/users/me/interests", "/api/users/me/interests"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
       },
     );
     if (!res.ok) {
@@ -484,16 +517,106 @@ export async function updateUserInterests(payload: UserInterestsInput): Promise<
       }
       throw new Error(await parseErrorMessage(res));
     }
+    
+    const data = await res.json();
+    console.log('[getUserInterests] API response:', JSON.stringify(data, null, 2));
+    
+    // Map IDs back to category keys
+    const ID_TO_CATEGORY_MAP: Record<number, string> = {
+      1: 'technology',
+      2: 'ict',
+      3: 'investing',
+      4: 'marketing',
+      5: 'media',
+      6: 'production',
+      7: 'education',
+    };
+    
+    // Parse the API response format
+    const result: UserInterestsInput = {};
+    
+    // Handle interests array from API (format: [{id, key, value}])
+    if (data.interests && Array.isArray(data.interests)) {
+      const activeInterests: string[] = [];
+      
+      data.interests.forEach((item: any) => {
+        const categoryKey = ID_TO_CATEGORY_MAP[item.id] || item.key;
+        if (categoryKey && item.value === true) {
+          activeInterests.push(categoryKey);
+          result[categoryKey as keyof UserInterestsInput] = true;
+        } else if (categoryKey) {
+          result[categoryKey as keyof UserInterestsInput] = false;
+        }
+      });
+      
+      result.interests = activeInterests;
+    }
+    
+    return result;
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
+  try {
+    // Map category keys to IDs (backend expects id-based format)
+    const CATEGORY_ID_MAP: Record<string, number> = {
+      'technology': 1,
+      'ict': 2,
+      'investing': 3,
+      'marketing': 4,
+      'media': 5,
+      'production': 6,
+      'education': 7,
+    };
+
+    // Collect selected categories from various sources
+    const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
+    const interestFlags = Object.entries(payload)
+      .filter(([key, value]) => typeof value === "boolean" && value === true)
+      .map(([key]) => key);
+    const mergedInterests = Array.from(new Set([...interestArray, ...interestFlags]));
+
+    // Convert to API format: array of {id, value} objects
+    const interestsForApi = Object.entries(CATEGORY_ID_MAP).map(([key, id]) => ({
+      id,
+      value: mergedInterests.includes(key),
+    }));
+
+    // Build the API payload according to Swagger spec
+    const apiPayload: any = {
+      interests: interestsForApi,
+    };
+
+    console.log('[updateUserInterests] Sending payload:', JSON.stringify(apiPayload, null, 2));
+
+    const res = await withAutoRefresh(
+      ["/users/me/interests", "/api/users/me/interests"],
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
+      },
+    );
+    if (!res.ok) {
+      if (res.status >= 500) {
+        throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[updateUserInterests] API error:', errorMsg);
+      throw new Error(errorMsg);
+    }
     // Sommige backends geven 204 No Content terug op een geslaagde update.
     if (res.status === 204) {
-      return sanitizedPayload;
+      return payload;
     }
     const text = await res.text();
-    if (!text) return sanitizedPayload;
+    if (!text) return payload;
     try {
       return JSON.parse(text);
     } catch {
-      return sanitizedPayload;
+      return payload;
     }
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
@@ -548,13 +671,15 @@ export async function getCurrentUserProfile(): Promise<UserModel> {
   }
 }
 
-export async function getUserById(userId: number): Promise<UserModel> {
-  if (!Number.isFinite(userId)) {
+export async function getUserById(userId: string | number): Promise<UserModel> {
+  const id = String(userId || "").trim();
+  if (!id) {
     throw new Error("Ongeldig gebruikers-id.");
   }
+  const encodedId = encodeURIComponent(id);
   try {
     const res = await withAutoRefresh(
-      [`/api/users/${userId}`, `/users/${userId}`],
+      [`/api/users/${encodedId}`, `/users/${encodedId}`],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -581,81 +706,162 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   const searchTerm = query.trim().toLowerCase();
   
   try {
-    // Strategie 1: Probeer het search endpoint (als backend dit heeft toegevoegd)
-    const searchEndpoint = `/api/users/search?username=${encodeURIComponent(query.trim())}`;
-    const fallbackSearchEndpoint = `/users/search?username=${encodeURIComponent(query.trim())}`;
+    // Strategie 1: Probeer dedicated search endpoint
+    const searchEndpoints = [
+      `/users/search?q=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?q=${encodeURIComponent(query.trim())}`,
+      `/users/search?name=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?name=${encodeURIComponent(query.trim())}`,
+      `/users/search?email=${encodeURIComponent(query.trim())}`,
+      `/api/users/search?email=${encodeURIComponent(query.trim())}`,
+    ];
     
-    const res = await withAutoRefresh(
-      [searchEndpoint, fallbackSearchEndpoint],
-      {
+    try {
+      const res = await withAutoRefresh(searchEndpoints, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-      },
-    );
-    
-    if (res.ok) {
-      const text = await res.text();
-      if (!text) return [];
-      const users = JSON.parse(text);
-      return Array.isArray(users) ? users : [];
+      });
+      
+      if (res.ok) {
+        const text = await res.text();
+        if (!text) return [];
+        
+        const data = JSON.parse(text);
+        console.log('[searchUsers] Search response:', data);
+        
+        // Handle verschillende response formaten
+        if (Array.isArray(data)) {
+          return data;
+        } else if (data.users && Array.isArray(data.users)) {
+          return data.users;
+        } else if (data.data && Array.isArray(data.data)) {
+          return data.data;
+        } else if (data.results && Array.isArray(data.results)) {
+          return data.results;
+        }
+        
+        return [];
+      }
+      
+      // Check voor 503 Service Unavailable
+      if (res.status === 503) {
+        throw new Error('De zoekservice is tijdelijk niet beschikbaar. Probeer het over een paar minuten opnieuw.');
+      }
+      
+      if (res.status === 404) {
+        logMissingSearchEndpointOnce();
+      } else {
+        const errorMsg = await parseErrorMessage(res);
+        console.log('[searchUsers] Search endpoint returned error:', res.status, errorMsg);
+      }
+    } catch (searchErr: any) {
+      // Als het een 503 error is, gooi die door
+      if (searchErr?.message?.includes('503') || searchErr?.message?.includes('niet beschikbaar')) {
+        throw searchErr;
+      }
+      if (String(searchErr?.message || '').includes('404')) {
+        logMissingSearchEndpointOnce();
+      }
+      console.log('[searchUsers] Search endpoint not available or failed:', searchErr?.message);
+      // Continue naar strategie 2
     }
     
-    // Als 404, probeer strategie 2
-    if (res.status !== 404) {
-      throw new Error(await parseErrorMessage(res));
-    }
-  } catch (err: any) {
-    // Als het niet een netwerk error is, probeer fallback
-    if (!err?.message?.toLowerCase().includes('404')) {
-      console.error('[searchUsers] Search endpoint error:', err);
-    }
-  }
-  
-  // Strategie 2: Probeer alle gebruikers op te halen en filter client-side
-  try {
-    console.log('[searchUsers] Search endpoint niet gevonden, probeer lijst alle gebruikers op te halen');
+    // Strategie 2: Haal alle gebruikers op en filter client-side
+    console.log('[searchUsers] Trying to fetch all users and filter client-side');
     
-    const listRes = await withAutoRefresh(
-      ['/api/users', '/users', '/api/users/list', '/users/list'],
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    const listEndpoints = [
+      '/users',
+      '/api/users',
+      '/users/all',
+      '/api/users/all',
+      '/users/list',
+      '/api/users/list'
+    ];
+    
+    const listRes = await withAutoRefresh(listEndpoints, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
     
     if (listRes.ok) {
       const text = await listRes.text();
       if (!text) return [];
       
-      const allUsers = JSON.parse(text);
-      if (!Array.isArray(allUsers)) return [];
+      let allUsers;
+      try {
+        const parsed = JSON.parse(text);
+        // Handle verschillende response formaten
+        if (Array.isArray(parsed)) {
+          allUsers = parsed;
+        } else if (parsed.users && Array.isArray(parsed.users)) {
+          allUsers = parsed.users;
+        } else if (parsed.data && Array.isArray(parsed.data)) {
+          allUsers = parsed.data;
+        } else {
+          console.log('[searchUsers] Unexpected response format:', parsed);
+          return [];
+        }
+      } catch (parseErr) {
+        console.error('[searchUsers] Failed to parse response:', parseErr);
+        return [];
+      }
       
-      // Filter client-side op first_name en last_name
-      return allUsers.filter((user: UserModel) => {
+      console.log('[searchUsers] Got', allUsers.length, 'users, filtering...');
+      
+      // Filter client-side op first_name, last_name, email, job_function, sector
+      const filtered = allUsers.filter((user: UserModel) => {
         const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
         const firstName = (user.first_name || '').toLowerCase();
         const lastName = (user.last_name || '').toLowerCase();
+        const email = (user.email || '').toLowerCase();
+        const jobFunction = (user.job_function || '').toLowerCase();
+        const sector = (user.sector || '').toLowerCase();
         
         return fullName.includes(searchTerm) || 
                firstName.includes(searchTerm) || 
-               lastName.includes(searchTerm);
+               lastName.includes(searchTerm) ||
+               email.includes(searchTerm) ||
+               jobFunction.includes(searchTerm) ||
+               sector.includes(searchTerm);
       });
+      
+      console.log('[searchUsers] Filtered to', filtered.length, 'matching users');
+      return filtered;
     }
-  } catch (listErr: any) {
-    console.error('[searchUsers] Kan geen gebruikerslijst ophalen:', listErr);
+    
+    // Check voor 503 errors
+    if (listRes.status === 503) {
+      throw new Error('De gebruikersservice is tijdelijk overbelast. Probeer het over een paar minuten opnieuw.');
+    }
+    
+    // Als list endpoint ook niet werkt
+    const listError = await parseErrorMessage(listRes);
+    console.error('[searchUsers] List endpoint also failed:', listRes.status, listError);
+    
+    if (listRes.status >= 500) {
+      throw new Error('De server heeft problemen. Probeer het later opnieuw.');
+    }
+    
+    throw new Error(`Kon gebruikers niet ophalen (status ${listRes.status})`);
+    
+  } catch (err: any) {
+    console.error('[searchUsers] All strategies failed:', err);
+    // Geef specifieke foutmelding voor 503
+    if (err?.message?.includes('503') || err?.message?.includes('overbelast') || err?.message?.includes('niet beschikbaar')) {
+      throw err;
+    }
+    throw new Error(err?.message || 'Zoeken mislukt. De server is mogelijk tijdelijk niet bereikbaar.');
   }
-  
-  // Beide strategieën gefaald
-  throw new Error('Zoekfunctie niet beschikbaar. De backend heeft geen /users/search of /users lijst endpoint.\n\nVraag de backend developer om een van deze endpoints toe te voegen.');
 }
 
-export async function fetchConversation(withUserId: number): Promise<ChatMessage[]> {
-  if (!Number.isFinite(withUserId)) {
+export async function fetchConversation(withUserId: string | number): Promise<ChatMessage[]> {
+  const userId = String(withUserId || "").trim();
+  if (!userId) {
     throw new Error("Ongeldig gebruikers-id om mee te chatten.");
   }
   try {
     const res = await withAutoRefresh(
-      [`/chat/messages?with=${encodeURIComponent(withUserId)}`],
+      [`/chat/messages?with=${encodeURIComponent(userId)}`],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -710,13 +916,21 @@ export async function sendChatMessage(payload: SendMessageRequest): Promise<Chat
   if (!payload?.content || !payload.receiver_id) {
     throw new Error("Bericht en ontvanger zijn verplicht.");
   }
+  const receiverId = String(payload.receiver_id || "").trim();
+  if (!receiverId) {
+    throw new Error("Ongeldig ontvanger-id.");
+  }
   try {
+    const body: any = { ...payload, receiver_id: receiverId };
+    if (!payload.receiver_email) {
+      delete body.receiver_email;
+    }
     const res = await withAutoRefresh(
       ["/chat/send"],
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       },
       CHAT_BASE_URLS,
     );
@@ -725,6 +939,57 @@ export async function sendChatMessage(payload: SendMessageRequest): Promise<Chat
     }
     return await res.json();
   } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function sendNotification(payload: NotificationRequest): Promise<NotificationResponse> {
+  if (!payload?.email || !payload?.type || !payload?.message) {
+    throw new Error("Notificatie mist verplichte velden (email, type, message).");
+  }
+
+  const requestBody = {
+    email: payload.email,
+    type: payload.type,
+    message: payload.message,
+    ...(payload.title ? { title: payload.title } : {}),
+  };
+
+  console.log("[NotificationAPI] Verstuur notificatie:", JSON.stringify(requestBody));
+
+  try {
+    const res = await requestWithFallback(
+      ["/notify"],
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      },
+      NOTIFICATION_BASE_URLS,
+    );
+
+    const text = await res.text();
+    console.log("[NotificationAPI] Response", res.status, text || "<leeg>");
+
+    const parseJsonSafe = () => {
+      try {
+        return text ? JSON.parse(text) : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
+    if (!res.ok) {
+      const parsed = parseJsonSafe();
+      const messageFromBody = typeof parsed === "string"
+        ? parsed
+        : parsed?.error || parsed?.message || text || `Notificatie versturen mislukt (status ${res.status})`;
+      throw new Error(messageFromBody);
+    }
+
+    return parseJsonSafe() || { status: "unknown", message: text || "Lege respons" };
+  } catch (err: any) {
+    console.warn("[NotificationAPI] Notificatie call faalde:", err?.message || err);
     throw new Error(normalizeNetworkError(err));
   }
 }

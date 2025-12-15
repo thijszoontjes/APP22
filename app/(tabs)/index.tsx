@@ -32,6 +32,11 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
+  const handleLogout = useCallback(async () => {
+    await clearAuthToken();
+    router.replace('/login');
+  }, [router]);
+
   useEffect(() => {
     const loadHintState = async () => {
       const seen = await getHomeHintSeen();
@@ -120,6 +125,9 @@ export default function HomePage() {
             <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
               <FilterIconSvg width={26} height={26} />
             </TouchableOpacity>,
+            <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+              <Text style={styles.logoutText}>Uit</Text>
+            </TouchableOpacity>,
           ]}
         />
         <View style={styles.loadingContainer}>
@@ -143,6 +151,9 @@ export default function HomePage() {
           actions={[
             <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
               <FilterIconSvg width={26} height={26} />
+            </TouchableOpacity>,
+            <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+              <Text style={styles.logoutText}>Uit</Text>
             </TouchableOpacity>,
           ]}
         />
@@ -171,6 +182,9 @@ export default function HomePage() {
         actions={[
           <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
             <FilterIconSvg width={26} height={26} />
+          </TouchableOpacity>,
+          <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Uit</Text>
           </TouchableOpacity>,
         ]}
       />
@@ -283,6 +297,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  logoutIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#E64B3C',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
   hintOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -8,7 +8,7 @@ import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollVi
 const ORANGE = '#FF8700';
 
 type ChatListItem = {
-  id: number;
+  id: string;
   name: string;
   message: string;
   time: string;
@@ -18,7 +18,7 @@ type ChatListItem = {
 };
 
 type StoredChatRef = {
-  userId: number;
+  userId: string;
   name?: string;
 };
 
@@ -39,23 +39,29 @@ export default function ChatPage() {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       return parsed
-        .map((item: any) => ({
-          userId: Number(item?.userId),
-          name: typeof item?.name === 'string' ? item.name : undefined,
-        }))
-        .filter((item: StoredChatRef) => Number.isFinite(item.userId) && item.userId > 0);
+        .map((item: any) => {
+          const rawId = typeof item?.userId === 'string' ? item.userId : item?.userId?.toString?.();
+          const userId = typeof rawId === 'string' ? rawId.trim() : '';
+          if (!userId) return null;
+          return {
+            userId,
+            name: typeof item?.name === 'string' ? item.name : undefined,
+          };
+        })
+        .filter((item: StoredChatRef | null): item is StoredChatRef => Boolean(item?.userId));
     } catch {
       return [];
     }
   }, []);
 
   const upsertStoredChat = useCallback(async (contact: StoredChatRef) => {
-    if (!Number.isFinite(contact.userId) || contact.userId <= 0) {
+    const normalizedId = contact.userId.trim();
+    if (!normalizedId) {
       return;
     }
     const current = await readStoredChats();
-    const filtered = current.filter(c => c.userId !== contact.userId);
-    const next = [{ userId: contact.userId, name: contact.name }, ...filtered].slice(0, 10);
+    const filtered = current.filter(c => c.userId !== normalizedId);
+    const next = [{ userId: normalizedId, name: contact.name }, ...filtered].slice(0, 10);
     try {
       await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(next));
     } catch {
@@ -64,16 +70,17 @@ export default function ChatPage() {
   }, [readStoredChats]);
 
   const fetchPreview = useCallback(async (contact: StoredChatRef): Promise<ChatListItem | null> => {
-    if (!Number.isFinite(contact.userId) || contact.userId <= 0) {
+    const userId = contact.userId.trim();
+    if (!userId) {
       return null;
     }
     try {
       const [user, messages] = await Promise.allSettled([
-        getUserById(contact.userId),
-        fetchConversation(contact.userId),
+        getUserById(userId),
+        fetchConversation(userId),
       ]);
 
-      let name = contact.name || `Gebruiker #${contact.userId}`;
+      let name = contact.name || `Gebruiker ${userId}`;
       if (user.status === 'fulfilled') {
         const maybeName = [user.value.first_name, user.value.last_name].filter(Boolean).join(' ').trim();
         if (maybeName) name = maybeName;
@@ -83,8 +90,13 @@ export default function ChatPage() {
       const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       const last = sorted[sorted.length - 1];
 
+      // Skip chats without any messages (placeholder data)
+      if (!last) {
+        return null;
+      }
+
       return {
-        id: contact.userId,
+        id: userId,
         name,
         message: last?.content || 'Nog geen berichten',
         time: formatTimeLabel(last?.created_at),
@@ -92,14 +104,8 @@ export default function ChatPage() {
         initials: deriveInitials(name),
       };
     } catch {
-      return {
-        id: contact.userId,
-        name: contact.name || `Gebruiker #${contact.userId}`,
-        message: 'Nog geen berichten',
-        time: '',
-        lastAt: 0,
-        initials: deriveInitials(contact.name || `Gebruiker #${contact.userId}`),
-      };
+      // Skip chats that fail to load (likely placeholder data)
+      return null;
     }
   }, []);
 
@@ -120,12 +126,31 @@ export default function ChatPage() {
       const saved = await readStoredChats();
       if (!saved.length) {
         setChats([]);
-        setError('We hebben nog geen video-feed; gebruik het ID-veld bovenaan om een chat te starten.');
+        setError('We hebben nog geen video-feed; gebruik het ID/UUID-veld bovenaan om een chat te starten.');
       } else {
         const previews = await Promise.all(saved.map(fetchPreview));
         const filtered = previews.filter(Boolean) as ChatListItem[];
+        
+        // Remove chats without messages from storage
+        const validUserIds = filtered.map(chat => chat.id);
+        const validContacts = saved.filter(contact => validUserIds.includes(contact.userId));
+        
+        if (validContacts.length !== saved.length) {
+          // Update storage to only keep valid chats
+          try {
+            await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(validContacts));
+            console.log('[ChatPage] Cleaned up', saved.length - validContacts.length, 'empty chats from storage');
+          } catch {
+            // best-effort cleanup
+          }
+        }
+        
         filtered.sort((a, b) => b.lastAt - a.lastAt);
         setChats(filtered);
+        
+        if (filtered.length === 0) {
+          setError('Geen actieve gesprekken gevonden. Start een chat met het ID/UUID-veld bovenaan.');
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Kon chats niet laden.');
@@ -148,17 +173,17 @@ export default function ChatPage() {
   };
 
   const handleStartManual = async () => {
-    const idNum = Math.trunc(Number(manualId));
-    if (!Number.isFinite(idNum) || idNum <= 0) {
-      setError('Vul een geldig gebruikers-ID in.');
+    const normalizedId = manualId.trim();
+    if (!normalizedId) {
+      setError('Vul een geldig gebruikers-ID of UUID in.');
       return;
     }
-    await upsertStoredChat({ userId: idNum });
+    await upsertStoredChat({ userId: normalizedId });
     setError('');
     await loadChats();
     router.push({
       pathname: '/dm',
-      params: { userId: idNum.toString(), userName: `Gebruiker #${idNum}` },
+      params: { userId: normalizedId, userName: `Gebruiker ${normalizedId}` },
     });
   };
 
@@ -174,15 +199,16 @@ export default function ChatPage() {
               style={styles.manualIdInput}
               value={manualId}
               onChangeText={setManualId}
-              placeholder="Gebruikers-ID"
+              placeholder="Gebruikers-ID of UUID"
               placeholderTextColor="#8a8a8a"
-              keyboardType="numeric"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
           <TouchableOpacity style={styles.manualButton} onPress={handleStartManual} activeOpacity={0.85}>
             <Text style={styles.manualButtonText}>Open chat</Text>
           </TouchableOpacity>
-          <Text style={styles.infoText}>Geen video-feed beschikbaar; gebruik tijdelijk het ID van een gebruiker om een chat te starten.</Text>
+          <Text style={styles.infoText}>Geen video-feed beschikbaar; gebruik tijdelijk het ID of de UUID van een gebruiker om een chat te starten.</Text>
         </View>
         <ScrollView
           style={styles.list}
@@ -205,7 +231,7 @@ export default function ChatPage() {
           {emptyState ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>Nog geen gesprekken</Text>
-              <Text style={styles.emptyText}>Start een chat met het ID-veld bovenaan om gesprekken te openen.</Text>
+              <Text style={styles.emptyText}>Start een chat met het ID/UUID-veld bovenaan om gesprekken te openen.</Text>
             </View>
           ) : null}
           {chats.map(chat => (

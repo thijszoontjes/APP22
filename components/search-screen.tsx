@@ -11,7 +11,6 @@ const ORANGE = '#FF8700';
 export default function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [segment, setSegment] = useState<'personen' | 'community'>('personen');
   const [results, setResults] = useState<UserModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,25 +48,46 @@ export default function SearchScreen() {
       }
     } catch (err: any) {
       console.error('[SearchScreen] Zoeken mislukt:', err);
-      setError(err?.message || 'Kon niet zoeken');
+      
+      // Specifieke error handling voor verschillende problemen
+      const errorMsg = err?.message || 'Kon niet zoeken';
+      
+      if (errorMsg.includes('503') || errorMsg.includes('overbelast') || errorMsg.includes('niet beschikbaar')) {
+        setError('⚠️ De server is tijdelijk overbelast. Probeer het over een paar minuten opnieuw.');
+      } else if (errorMsg.includes('Sessie verlopen')) {
+        setError('Je sessie is verlopen. Log opnieuw in.');
+      } else if (errorMsg.includes('Network') || errorMsg.includes('verbinding')) {
+        setError('Geen internetverbinding. Controleer je netwerk.');
+      } else {
+        setError(errorMsg);
+      }
+      
       setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleProfilePress = (userId?: number) => {
-    if (!userId) {
-      alert('Kan profiel niet openen');
+  const handleProfilePress = (user: UserModel) => {
+    if (!user?.id) {
+      alert('Kan profiel niet openen: geen gebruikers-ID');
       return;
     }
-    // Navigeer naar profiel of DM scherm
+    
+    const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Gebruiker ${user.id}`;
+    const params: Record<string, string> = {
+      userId: String(user.id),
+      userName: userName,
+    };
+
+    if (user.email) {
+      params.userEmail = user.email;
+    }
+
+    // Navigeer naar DM scherm
     router.push({
       pathname: '/dm',
-      params: {
-        userId: userId,
-        userName: `Gebruiker ${userId}`,
-      },
+      params,
     });
   };
 
@@ -84,31 +104,22 @@ export default function SearchScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={styles.infoText}>Zoek naar personen op naam, email, functie of sector en bekijk hun profiel of start een chat</Text>
+        
         <View style={styles.searchBox}>
           <TextInput
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
+            placeholder="Zoek op naam of email..."
+            placeholderTextColor="#999"
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
           />
           <SearchIconSvg width={20} height={20} />
         </View>
-        <View style={styles.segmentRow}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.segment, segment === 'personen' && styles.segmentActive]}
-            onPress={() => setSegment('personen')}>
-            <Text style={[styles.segmentText, segment === 'personen' && styles.segmentTextActive]}>Personen</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.segment, styles.segmentGhost, segment === 'community' && styles.segmentActiveGhost]}
-            onPress={() => setSegment('community')}>
-            <Text style={[styles.segmentTextGhost, segment === 'community' && styles.segmentTextActiveGhost]}>Community</Text>
-          </TouchableOpacity>
-        </View>
+        
         <View style={styles.fullDivider} />
 
         {loading && (
@@ -121,12 +132,32 @@ export default function SearchScreen() {
         {!loading && error && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>{error}</Text>
+            {(error.includes('overbelast') || error.includes('503')) && (
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={() => {
+                  setError('');
+                  performSearch();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.retryButtonText}>Opnieuw proberen</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {!loading && !error && results.length === 0 && query.trim().length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>Zoek naar personen</Text>
+            <Text style={styles.emptySubtext}>Begin met typen om te zoeken op naam, email, functie of sector</Text>
           </View>
         )}
 
         {!loading && !error && results.length === 0 && query.trim().length >= 2 && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Geen gebruikers gevonden</Text>
+            <Text style={styles.emptySubtext}>Probeer een andere zoekterm</Text>
           </View>
         )}
 
@@ -159,9 +190,9 @@ export default function SearchScreen() {
               <TouchableOpacity 
                 activeOpacity={0.9} 
                 style={styles.profileButton}
-                onPress={() => handleProfilePress(result.id)}
+                onPress={() => handleProfilePress(result)}
               >
-                <Text style={styles.profileButtonText}>Open profiel</Text>
+                <Text style={styles.profileButtonText}>Chat starten</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.divider} />
@@ -189,8 +220,16 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 20,
-    paddingTop: 22,
+    paddingTop: 16,
     paddingBottom: 32,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 18,
+    lineHeight: 20,
+    paddingHorizontal: 10,
   },
   searchBox: {
     flexDirection: 'row',
@@ -211,54 +250,12 @@ const styles = StyleSheet.create({
     color: '#000',
     paddingVertical: 0,
   },
-  segmentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-    width: '92%',
-    alignSelf: 'center',
-  },
-  segment: {
-    minWidth: 124,
-    height: 42,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  segmentActive: {
-    backgroundColor: ORANGE,
-  },
-  segmentText: {
-    color: '#1A2233',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  segmentTextActive: {
-    color: '#fff',
-  },
-  segmentGhost: {
-    borderWidth: 1,
-    borderColor: '#1A2233',
-    backgroundColor: '#fff',
-  },
-  segmentActiveGhost: {
-    backgroundColor: '#1A2233',
-  },
-  segmentTextGhost: {
-    color: '#1A2233',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  segmentTextActiveGhost: {
-    color: '#fff',
-  },
   fullDivider: {
     height: 2,
     backgroundColor: 'rgba(255,135,0,0.2)',
     marginVertical: 6,
     alignSelf: 'stretch',
-    marginHorizontal: -24,
+    marginHorizontal: -20,
   },
   listItemWrap: {
     paddingHorizontal: 10,
@@ -268,13 +265,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     gap: 12,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 2,
-    borderColor: ORANGE,
   },
   avatarPlaceholder: {
     width: 64,
@@ -325,7 +315,7 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: 'rgba(255,135,0,0.2)',
     marginLeft: 74,
-    marginRight: -20,
+    marginRight: -10,
   },
   loadingContainer: {
     paddingVertical: 40,
@@ -338,12 +328,38 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     paddingVertical: 40,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
+  emptyTitle: {
+    fontSize: 18,
+    color: '#1A2233',
+    fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: ORANGE,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#5c5c5c',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 6,
   },
 });
-

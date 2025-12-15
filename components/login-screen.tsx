@@ -116,12 +116,6 @@ export default function LoginScreen() {
             onPress={handleLogin}>
             <Text style={styles.loginBtnText}>{loading ? 'Inloggen...' : 'Inloggen'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.loginBtn, styles.placeholderBtn]}
-            onPress={() => router.replace('/(tabs)')}
-            accessibilityHint="Placeholder om zonder login naar de app te gaan">
-            <Text style={styles.loginBtnText}>Sla login over</Text>
-          </TouchableOpacity>
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
             <Link href="/register" asChild>
@@ -230,10 +224,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
-  },
-  placeholderBtn: {
-    backgroundColor: '#1A2233',
-    marginTop: -10,
   },
   registerRow: {
     flexDirection: 'row',
