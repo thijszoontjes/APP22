@@ -3,7 +3,7 @@ import HeartIconSvg from '@/assets/images/heart-icon.svg';
 import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
-import type { FeedItem } from '@/hooks/useVideoApi';
+import { getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -72,22 +72,36 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   const heartScale = useRef(new Animated.Value(1)).current;
   const likeScale = useRef(new Animated.Value(1)).current;
   const likeTranslateY = useRef(new Animated.Value(0)).current;
+  const boundedHeight = cardHeight || SCREEN_HEIGHT;
+  const [playerStatus, setPlayerStatus] = useState<'idle' | 'loading' | 'readyToPlay' | 'error'>('idle');
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
 
   // Gebruik signedUrl (van backend), anders HLS stream of progressive
-  const videoSource = item.signedUrl || 
-                      item.stream?.find((s) => s.protocol === 'hls')?.url || 
-                      item.progressiveUrl || 
-                      item.stream?.[0]?.url;
+  const videoSource = getPlayableVideoUrl(item);
 
   // Video source bepaald
 
-  const player = useVideoPlayer(videoSource || '', (player) => {
+  const player = useVideoPlayer(videoSource ?? null, (player) => {
     player.loop = true;
     player.muted = false;
   });
 
   useEffect(() => {
-    const shouldPlay = !!videoSource && isActive && isScreenFocused;
+    setHasFirstFrame(false);
+  }, [videoSource]);
+
+  useEffect(() => {
+    setPlayerStatus(player.status);
+    const sub = player.addListener('statusChange', (event) => {
+      setPlayerStatus(event.status);
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [player]);
+
+  useEffect(() => {
+    const shouldPlay = !!videoSource && playerStatus !== 'error' && isActive && isScreenFocused;
     if (shouldPlay) {
       try {
         player.muted = false;
@@ -104,7 +118,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         console.log('[VideoFeedItem] Error pausing video (likely unmounting):', error);
       }
     }
-  }, [isActive, player, videoSource, isScreenFocused]);
+  }, [isActive, player, videoSource, isScreenFocused, playerStatus]);
 
   useEffect(() => {
     return () => {
@@ -209,17 +223,19 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
     });
   };
 
-  if (!videoSource) {
+  const showPlaceholder = !videoSource || playerStatus === 'error';
+
+  if (showPlaceholder) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { height: boundedHeight, maxHeight: boundedHeight }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>Video niet beschikbaar</Text>
+          <Text style={styles.errorText}>
+            {playerStatus === 'error' ? 'Video kan niet worden afgespeeld' : 'Video wordt verwerkt…'}
+          </Text>
         </View>
       </View>
     );
   }
-
-  const boundedHeight = cardHeight || SCREEN_HEIGHT;
 
   return (
     <View style={[styles.container, { height: boundedHeight, maxHeight: boundedHeight }]}>
@@ -230,7 +246,14 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         allowsFullscreen={false}
         allowsPictureInPicture={false}
         contentFit="cover"
+        onFirstFrameRender={() => setHasFirstFrame(true)}
       />
+
+      {!hasFirstFrame && (
+        <View style={styles.bufferOverlay} pointerEvents="none">
+          <Text style={styles.bufferText}>Video laden…</Text>
+        </View>
+      )}
 
       <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8} onPress={handleHeartPress}>
         <Animated.View style={{ transform: [{ scale: heartScale }] }}>
@@ -297,6 +320,19 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#fff',
     fontSize: 16,
+  },
+  bufferOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  bufferText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   topRightIcon: {
     position: 'absolute',
