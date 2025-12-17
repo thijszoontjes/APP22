@@ -199,7 +199,7 @@ export default function ProfilePage() {
           {/* Toon API videos (van backend/Mux) */}
           {apiVideos.map((video, i) => (
             (() => {
-              const uri = getPlayableVideoUrl(video) || '';
+              const uri = getPlayableVideoUrl(video) || video.localUri || '';
               return (
             <VideoThumbnail 
               key={`api-${video.id}`}

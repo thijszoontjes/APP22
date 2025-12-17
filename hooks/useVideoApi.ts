@@ -1,4 +1,5 @@
 import { BASE_URLS, VIDEO_BASE_URLS } from "../constants/api";
+import { getLocalUriByUploadedVideoId } from "../constants/pitch-store";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
 import * as FileSystem from "expo-file-system/legacy";
 import { Buffer } from "buffer";
@@ -27,6 +28,7 @@ export interface FeedItem {
   stream?: StreamVariant[];
   progressiveUrl?: string;
   signedUrl?: string; // Mux signed URL van de backend
+  localUri?: string; // Local fallback (net opgenomen pitch)
   playbackId?: string;
   muxAssetId?: string;
   urlExpiresIn?: number;
@@ -247,6 +249,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
       const listData = await listRes.json();
       const normalized = toFeedResponse(listData);
       await enrichItemsWithSignedUrls(normalized.items);
+      attachLocalUris(normalized.items);
       return normalized;
     } catch {
       return null;
@@ -283,6 +286,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
     const data = await res.json();
     const normalized = toFeedResponse(data);
+    attachLocalUris(normalized.items);
 
     // `/feed` is gepersonaliseerd en kan leeg zijn als de recommendation-service (nog) niks teruggeeft
     // of als de upload nog wordt verwerkt. Val dan terug op `/videos` (algemene lijst).
@@ -297,6 +301,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     }
 
     await enrichItemsWithSignedUrls(normalized.items);
+    attachLocalUris(normalized.items);
     console.log(`[VideoAPI] ${normalized.items.length} video's geladen (/feed)`);
     return normalized;
   } catch (err: any) {
@@ -328,7 +333,7 @@ export const getPlayableVideoUrl = (item: Partial<FeedItem> | null | undefined):
   const streamUrl =
     item.stream?.find((s) => s?.protocol === "hls" && typeof s?.url === "string" && s.url.length)?.url ||
     item.stream?.find((s) => typeof s?.url === "string" && s.url.length)?.url;
-  const url = item.signedUrl || streamUrl || item.progressiveUrl;
+  const url = item.signedUrl || streamUrl || item.progressiveUrl || item.localUri;
   return typeof url === "string" && url.length ? url : null;
 };
 
@@ -463,6 +468,17 @@ const enrichItemsWithSignedUrls = async (items: FeedItem[], concurrency: number 
 
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, runWorker));
   return items;
+};
+
+const attachLocalUris = (items: FeedItem[]) => {
+  for (const item of items) {
+    if (item.localUri) continue;
+    if (getPlayableVideoUrl(item)) continue;
+    const local = getLocalUriByUploadedVideoId(item.id);
+    if (local) {
+      item.localUri = local;
+    }
+  }
 };
 
 export async function createVideoUpload(
@@ -609,6 +625,7 @@ export async function getMyVideos(): Promise<FeedResponse> {
 
     if (!tokenUserId) {
       const enriched = await enrichItemsWithSignedUrls(items);
+      attachLocalUris(enriched);
       return { items: enriched, total };
     }
 
@@ -620,6 +637,7 @@ export async function getMyVideos(): Promise<FeedResponse> {
     });
 
     const enriched = await enrichItemsWithSignedUrls(filtered);
+    attachLocalUris(enriched);
 
     console.log(`[VideoAPI] ${enriched.length}/${items.length} eigen video's geladen (fallback /videos)`);
     return { items: enriched, total: enriched.length };

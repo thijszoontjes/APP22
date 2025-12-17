@@ -4,7 +4,7 @@ import OpnieuwIconSvg from '@/assets/images/opnieuw-icon.svg';
 import PauseIconSvg from '@/assets/images/pause-icon.svg';
 import PlayIconSvg from '@/assets/images/play-icon.svg';
 import UploadIconSvg from '@/assets/images/upload-icon.svg';
-import { getPitches } from '@/constants/pitch-store';
+import { getPitches, markPitchUploaded } from '@/constants/pitch-store';
 import { createVideoUpload, uploadVideoToMux } from '@/hooks/useVideoApi';
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -233,6 +233,9 @@ export default function PitchPreview() {
 
       // Stap 2: Upload naar Mux (stream vanaf device storage)
       await uploadVideoToMux(uploadData.uploadUrl, videoUri, contentType);
+
+      // Koppel lokale pitch aan backend videoId (zodat we 'm kunnen tonen terwijl Mux nog verwerkt)
+      await markPitchUploaded(videoUri, uploadData.id);
 
       console.log('[PitchPreview] Video succesvol geupload!');
       Alert.alert(
