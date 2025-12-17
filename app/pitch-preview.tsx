@@ -15,6 +15,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const ORANGE = '#FF8700';
 
+const guessMimeTypeFromUri = (uri: string): string | undefined => {
+  const normalized = uri.split('?')[0]?.toLowerCase() ?? '';
+  if (normalized.endsWith('.mp4')) return 'video/mp4';
+  if (normalized.endsWith('.mov')) return 'video/quicktime';
+  if (normalized.endsWith('.m4v')) return 'video/x-m4v';
+  return undefined;
+};
+
 export default function PitchPreview() {
   const router = useRouter();
   const params = useLocalSearchParams<{ uri?: string; facing?: string }>();
@@ -207,32 +215,24 @@ export default function PitchPreview() {
 
     try {
       setIsUploading(true);
+      const contentType = guessMimeTypeFromUri(videoUri) ?? 'video/mp4';
 
       // Stap 1: Vraag upload URL aan bij VideoService
       console.log('[PitchPreview] Vraag upload URL aan...');
       const uploadData = await createVideoUpload({
         title: 'Mijn Pitch',
-        description: 'Een pitch video',
-        category: 'pitch',
+        contentType,
       });
 
       console.log('[PitchPreview] Upload URL ontvangen:', uploadData.uploadUrl);
 
-      // Stap 2: Lees video file met fetch (werkt met file:// en ph:// URIs)
-      const response = await fetch(videoUri);
-      if (!response.ok) {
-        throw new Error('Video bestand niet gevonden');
-      }
-      
-      const blob = await response.blob();
-
       console.log('[PitchPreview] Upload video naar Mux...', {
-        size: blob.size,
-        type: blob.type,
+        uri: videoUri,
+        contentType,
       });
 
-      // Stap 3: Upload naar Mux
-      await uploadVideoToMux(uploadData.uploadUrl, blob);
+      // Stap 2: Upload naar Mux (stream vanaf device storage)
+      await uploadVideoToMux(uploadData.uploadUrl, videoUri, contentType);
 
       console.log('[PitchPreview] Video succesvol geupload!');
       Alert.alert(

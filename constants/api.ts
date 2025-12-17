@@ -16,7 +16,7 @@ const DEFAULT_NOTIFICATION_BASE_URL = "http://localhost:8086";
 const SECONDARY_NOTIFICATION_BASE_URL = "https://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 const SECONDARY_NOTIFICATION_BASE_URL_HTTP = "http://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 
-const stripTrailingSlash = (url: string) => url.replace(/\/+$/, "");
+const normalizeUrl = (url: string) => url.trim().replace(/\/+$/, "");
 
 // Probeer eerst de env-var, daarna de bekende routes (oude + nieuwe DNS zonder dubbele service-naam).
 const isString = (value: string | undefined): value is string => typeof value === "string" && value.length > 0;
@@ -30,7 +30,7 @@ export const BASE_URLS = Array.from(
       SECONDARY_BASE_URL_HTTP,
     ]
       .filter(isString)
-      .map((url) => stripTrailingSlash(url)),
+      .map((url) => normalizeUrl(url)),
   ),
 );
 
@@ -46,7 +46,7 @@ export const CHAT_BASE_URLS = Array.from(
       SECONDARY_CHAT_BASE_URL_HTTP,
     ]
       .filter(isString)
-      .map((url) => stripTrailingSlash(url)),
+      .map((url) => normalizeUrl(url)),
   ),
 );
 
@@ -61,7 +61,7 @@ export const VIDEO_BASE_URLS = Array.from(
       SECONDARY_VIDEO_BASE_URL_HTTP,
     ]
       .filter(isString)
-      .map((url) => stripTrailingSlash(url)),
+      .map((url) => normalizeUrl(url)),
   ),
 );
 
@@ -76,7 +76,7 @@ export const NOTIFICATION_BASE_URLS = Array.from(
       SECONDARY_NOTIFICATION_BASE_URL_HTTP,
     ]
       .filter(isString)
-      .map((url) => stripTrailingSlash(url)),
+      .map((url) => normalizeUrl(url)),
   ),
 );
 

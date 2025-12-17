@@ -1,5 +1,7 @@
 import { BASE_URLS, VIDEO_BASE_URLS } from "../constants/api";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
+import * as FileSystem from "expo-file-system/legacy";
+import { Buffer } from "buffer";
 
 export interface StreamVariant {
   url: string;
@@ -43,10 +45,15 @@ export interface FeedResponse {
 }
 
 const REQUEST_TIMEOUT_MS = 10000;
+const CREATE_UPLOAD_TIMEOUT_MS = 30000;
 
-const fetchWithTimeout = async (url: string, options: RequestInit) => {
+const fetchWithTimeout = async (
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
+) => {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (err: any) {
@@ -77,19 +84,46 @@ const parseErrorMessage = async (res: Response) => {
   }
 };
 
+const decodeJwtPayload = (token: string): any | null => {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const requestWithFallback = async (
   path: string,
   init: RequestInit,
-  bases: string[] = VIDEO_BASE_URLS
+  bases: string[] = VIDEO_BASE_URLS,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<Response> => {
   let lastError: Error | null = null;
+  const method = String(init?.method || "GET").toUpperCase();
+  const isIdempotent = method === "GET" || method === "HEAD";
 
   for (const base of bases) {
     const url = `${base}${path}`;
     console.log(`[VideoAPI] Probeer: ${url}`);
     try {
-      const res = await fetchWithTimeout(url, init);
+      let res = await fetchWithTimeout(url, init, timeoutMs);
       console.log(`[VideoAPI] Response: ${res.status} van ${url}`);
+
+      // Transient 5xx gebeurt soms; voor idempotente requests proberen we 1x opnieuw op dezelfde host.
+      if (isIdempotent && (res.status === 502 || res.status === 503 || res.status === 504)) {
+        await sleep(250);
+        console.log(`[VideoAPI] Retry: ${url}`);
+        res = await fetchWithTimeout(url, init, timeoutMs);
+        console.log(`[VideoAPI] Response (retry): ${res.status} van ${url}`);
+      }
+
       // Als we een response krijgen die geen netwerk error is, return die
       if (res.status < 500 || res.ok) {
         return res;
@@ -118,7 +152,8 @@ const refreshAccessToken = async (refreshToken: string) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     },
-    BASE_URLS
+    BASE_URLS,
+    REQUEST_TIMEOUT_MS
   );
 
   if (!res.ok) {
@@ -135,7 +170,11 @@ const refreshAccessToken = async (refreshToken: string) => {
   return { accessToken: newAccess, refreshToken: newRefresh };
 };
 
-const videoRequestWithAuth = async (path: string, init: RequestInit = {}) => {
+const videoRequestWithAuth = async (
+  path: string,
+  init: RequestInit = {},
+  timeoutMs: number = REQUEST_TIMEOUT_MS
+) => {
   const { accessToken, refreshToken } = await getAuthTokens();
   if (!accessToken) {
     throw new Error("Geen toegang. Log opnieuw in.");
@@ -148,7 +187,7 @@ const videoRequestWithAuth = async (path: string, init: RequestInit = {}) => {
         ...(init.headers || {}),
         Authorization: `Bearer ${token}`,
       },
-    });
+    }, VIDEO_BASE_URLS, timeoutMs);
 
   let res = await withAuth(accessToken);
   if (res.status === 401 && refreshToken) {
@@ -242,9 +281,12 @@ export interface UploadResponse {
 export async function createVideoUpload(
   payload: CreateVideoRequest
 ): Promise<UploadResponse> {
-  // Minimale payload - alleen title is vereist
-  const uploadPayload = {
-    title: payload.title || 'Nieuwe Video'
+  // Backend validatie blijkt in productie soms strenger dan de OpenAPI beschrijving.
+  // Stuur daarom standaard een minimale payload (alleen `title` + optioneel `contentType`).
+  // Extra metadata kan later toegevoegd worden als de backend dit overal accepteert.
+  const uploadPayload: Partial<CreateVideoRequest> = {
+    title: payload.title || "Nieuwe Video",
+    ...(payload.contentType ? { contentType: payload.contentType } : {}),
   };
 
   console.log('[VideoAPI] Create upload with payload:', uploadPayload);
@@ -256,7 +298,7 @@ export async function createVideoUpload(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(uploadPayload),
-    });
+    }, CREATE_UPLOAD_TIMEOUT_MS);
 
     if (!res.ok) {
       const errorMsg = await parseErrorMessage(res);
@@ -282,19 +324,49 @@ export async function createVideoUpload(
 
 export async function uploadVideoToMux(
   uploadUrl: string,
-  videoFile: Blob | File
+  videoFile: Blob | File | string,
+  contentType?: string
 ): Promise<void> {
   try {
+    if (typeof videoFile === "string") {
+      const isLocalFileUri = /^file:\/\//i.test(videoFile);
+      if (!isLocalFileUri) {
+        const blobRes = await fetch(videoFile);
+        if (!blobRes.ok) {
+          throw new Error("Video bestand niet gevonden");
+        }
+        const blob = await blobRes.blob();
+        return await uploadVideoToMux(uploadUrl, blob, contentType);
+      }
+
+      const result = await FileSystem.uploadAsync(uploadUrl, videoFile, {
+        httpMethod: "PUT",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: contentType ? { "Content-Type": contentType } : undefined,
+      });
+
+      if (result.status < 200 || result.status >= 300) {
+        const suffix = result.body ? ` - ${result.body}` : "";
+        throw new Error(`Upload mislukt: ${result.status}${suffix}`);
+      }
+      return;
+    }
+
+    const resolvedContentType =
+      contentType || ("type" in videoFile && (videoFile as any).type) || "application/octet-stream";
+
     const res = await fetch(uploadUrl, {
       method: "PUT",
       headers: {
-        "Content-Type": "video/mp4",
+        "Content-Type": resolvedContentType,
       },
-      body: videoFile,
+      body: videoFile as Blob,
     });
 
     if (!res.ok) {
-      throw new Error(`Upload mislukt: ${res.status}`);
+      const body = await res.text().catch(() => "");
+      const suffix = body ? ` - ${body}` : "";
+      throw new Error(`Upload mislukt: ${res.status}${suffix}`);
     }
   } catch (err: any) {
     throw new Error(err?.message || "Video upload mislukt");
@@ -304,31 +376,68 @@ export async function uploadVideoToMux(
 // Haal eigen videos op (van ingelogde user)
 export async function getMyVideos(): Promise<FeedResponse> {
   try {
-    const res = await videoRequestWithAuth("/videos/my", {
+    const commonInit: RequestInit = {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+      headers: { "Content-Type": "application/json" },
+    };
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        throw new Error("Sessie verlopen. Log opnieuw in.");
-      }
-      if (res.status === 404) {
-        // Nog geen videos
-        return { items: [], total: 0 };
-      }
-      const errorMsg = await parseErrorMessage(res);
-      throw new Error(`Video service error (${res.status}): ${errorMsg}`);
+    // Sommige deployments hebben geen `/videos/my` endpoint (niet in de OpenAPI).
+    // Probeer eerst `/videos/my`, en val bij 404 terug op `/videos`.
+    const myRes = await videoRequestWithAuth("/videos/my", commonInit);
+
+    if (myRes.ok) {
+      const data = await myRes.json();
+      console.log(`[VideoAPI] ${data.items?.length || 0} eigen video's geladen (/videos/my)`);
+      return data;
     }
 
-    const data = await res.json();
-    console.log(`[VideoAPI] ${data.items?.length || 0} eigen video's geladen`);
-    return data;
+    if (myRes.status === 401) {
+      throw new Error("Sessie verlopen. Log opnieuw in.");
+    }
+
+    if (myRes.status !== 404) {
+      const errorMsg = await parseErrorMessage(myRes);
+      throw new Error(`Video service error (${myRes.status}): ${errorMsg}`);
+    }
+
+    // Fallback: `/videos` + client-side filter op userId/sub/owner.id indien aanwezig.
+    const listRes = await videoRequestWithAuth("/videos", commonInit);
+    if (!listRes.ok) {
+      if (listRes.status === 401) {
+        throw new Error("Sessie verlopen. Log opnieuw in.");
+      }
+      const errorMsg = await parseErrorMessage(listRes);
+      throw new Error(`Video service error (${listRes.status}): ${errorMsg}`);
+    }
+
+    const data = await listRes.json();
+    const items: FeedItem[] = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+    const total = typeof data?.total === "number" ? data.total : items.length;
+
+    const { accessToken } = await getAuthTokens();
+    const tokenPayload = accessToken ? decodeJwtPayload(accessToken) : null;
+    const tokenUserId = String(
+      tokenPayload?.sub ?? tokenPayload?.user_id ?? tokenPayload?.userId ?? ""
+    ).trim();
+
+    if (!tokenUserId) {
+      return { items, total };
+    }
+
+    const filtered = items.filter((video) => {
+      const ownerId = video?.owner?.id ? String(video.owner.id).trim() : "";
+      const userId = video?.userId != null ? String(video.userId).trim() : "";
+      const ownerIdAlt = video?.ownerId != null ? String(video.ownerId).trim() : "";
+      return ownerId === tokenUserId || userId === tokenUserId || ownerIdAlt === tokenUserId;
+    });
+
+    console.log(
+      `[VideoAPI] ${filtered.length}/${items.length} eigen video's geladen (fallback /videos)`
+    );
+
+    return { items: filtered, total: filtered.length };
   } catch (err: any) {
     console.error('[VideoAPI] Get my videos error:', err);
     throw new Error(err?.message || "Kon eigen videos niet laden");
   }
 }
-
