@@ -225,6 +225,16 @@ export default function HomePage() {
             })}
             refreshing={refreshing}
             onRefresh={onRefresh}
+            ListEmptyComponent={
+              <View style={styles.emptyFeed}>
+                <Text style={styles.emptyFeedText}>
+                  Geen afspeelbare video’s gevonden. Video’s kunnen nog worden verwerkt.
+                </Text>
+                <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed}>
+                  <Text style={styles.retryButtonText}>Opnieuw laden</Text>
+                </TouchableOpacity>
+              </View>
+            }
           />
         </View>
       </View>
@@ -332,5 +342,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  emptyFeed: {
+    height: SCREEN_HEIGHT * 0.65,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  emptyFeedText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

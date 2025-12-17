@@ -2,7 +2,7 @@ import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { getPitches, subscribe } from '@/constants/pitch-store';
 import { ensureValidSession, getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
-import { getMyVideos, type FeedItem } from '@/hooks/useVideoApi';
+import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -14,22 +14,58 @@ const ORANGE = '#FF8700';
 
 // Video Thumbnail Component - Only loads when visible
 function VideoThumbnail({ uri, onPress, isVisible }: { uri: string; onPress: () => void; isVisible: boolean }) {
-  const player = useVideoPlayer(isVisible ? uri : '');
+  const playableUri = uri?.trim?.() ? uri : '';
+  const player = useVideoPlayer(isVisible ? playableUri : '', (player) => {
+    player.loop = true;
+    player.muted = true;
+  });
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
+
+  useEffect(() => {
+    setHasFirstFrame(false);
+  }, [playableUri]);
+
+  useEffect(() => {
+    if (!isVisible || !playableUri) {
+      try {
+        player.pause();
+      } catch {}
+      return;
+    }
+    try {
+      player.play();
+    } catch {}
+  }, [isVisible, playableUri, player]);
 
   return (
     <TouchableOpacity 
       style={styles.videoThumbnailContainer}
       activeOpacity={0.8}
       onPress={onPress}>
-      {isVisible ? (
-        <VideoView
-          style={styles.videoThumbnail}
-          player={player}
-          contentFit="cover"
-          nativeControls={false}
-        />
+      {isVisible && playableUri ? (
+        <View style={styles.videoThumbnailWrapper}>
+          <VideoView
+            style={styles.videoThumbnail}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+            onFirstFrameRender={() => setHasFirstFrame(true)}
+          />
+          {!hasFirstFrame && (
+            <View style={styles.thumbnailOverlay} pointerEvents="none">
+              <Text style={styles.thumbnailOverlayText}>Laden…</Text>
+            </View>
+          )}
+        </View>
       ) : (
-        <View style={[styles.videoThumbnail, { backgroundColor: '#e0e0e0' }]} />
+        <View style={styles.videoThumbnailWrapper}>
+          <View style={[styles.videoThumbnail, { backgroundColor: '#e0e0e0' }]} />
+          <View style={styles.thumbnailOverlay} pointerEvents="none">
+            <Text style={styles.thumbnailOverlayText}>
+              {isVisible ? 'Wordt verwerkt…' : ''}
+            </Text>
+          </View>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -162,12 +198,17 @@ export default function ProfilePage() {
         <View style={styles.videosGrid}>
           {/* Toon API videos (van backend/Mux) */}
           {apiVideos.map((video, i) => (
+            (() => {
+              const uri = getPlayableVideoUrl(video) || '';
+              return (
             <VideoThumbnail 
               key={`api-${video.id}`}
-              uri={video.signedUrl || video.progressiveUrl || ''}
-              onPress={() => setSelectedVideoUri(video.signedUrl || video.progressiveUrl || '')}
+              uri={uri}
+              onPress={() => setSelectedVideoUri(uri)}
               isVisible={visibleIndices.has(i)}
             />
+              );
+            })()
           ))}
           {/* Toon lokale pitches */}
           {pitches.map((pitch, i) => (
@@ -414,11 +455,29 @@ const styles = StyleSheet.create({
     width: '28%',
     aspectRatio: 2 / 3,
   },
-  videoThumbnail: {
+  videoThumbnailWrapper: {
     width: '100%',
     height: '100%',
     borderRadius: 12,
+    overflow: 'hidden',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
     backgroundColor: '#000',
+  },
+  thumbnailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  thumbnailOverlayText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   modalContainer: {
     flex: 1,

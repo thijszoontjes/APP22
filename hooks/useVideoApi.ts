@@ -219,6 +219,40 @@ const videoRequestWithAuth = async (
 };
 
 export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
+  const toFeedResponse = (data: any): FeedResponse => {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const total = typeof data?.total === "number" ? data.total : items.length;
+    return {
+      items: items.map((item: any) => ({
+        ...item,
+        liked: typeof item?.liked === "boolean" ? item.liked : false,
+        likeCount: typeof item?.likeCount === "number" ? item.likeCount : 0,
+      })),
+      nextCursor: typeof data?.nextCursor === "string" ? data.nextCursor : undefined,
+      total,
+    };
+  };
+
+  const fallbackToAllVideos = async (): Promise<FeedResponse | null> => {
+    try {
+      const listRes = await videoRequestWithAuth("/videos", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!listRes.ok) {
+        return null;
+      }
+
+      const listData = await listRes.json();
+      const normalized = toFeedResponse(listData);
+      await enrichItemsWithSignedUrls(normalized.items);
+      return normalized;
+    } catch {
+      return null;
+    }
+  };
+
   try {
     const res = await videoRequestWithAuth(`/feed?limit=${limit}`, {
       method: "GET",
@@ -235,9 +269,12 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
           throw new Error("Sessie verlopen. Log opnieuw in.");
         }
       }
-      // Bij 500/503 - dit is server probleem, niet authenticatie
+
+      // Bij 5xx proberen we te vallen terug op `/videos` zodat je alsnog video's ziet.
       if (res.status >= 500) {
-        console.warn('[VideoAPI] Server error:', res.status);
+        console.warn('[VideoAPI] Feed server error:', res.status, 'probeer fallback /videos');
+        const fallback = await fallbackToAllVideos();
+        if (fallback) return fallback;
         throw new Error("Video server heeft problemen. Probeer het opnieuw.");
       }
       const errorMsg = await parseErrorMessage(res);
@@ -245,15 +282,23 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     }
 
     const data = await res.json();
-    
-    // Check of we daadwerkelijk items hebben
-    if (!data.items || data.items.length === 0) {
-      throw new Error("Nog geen video's beschikbaar. Upload de eerste video!");
+    const normalized = toFeedResponse(data);
+
+    // `/feed` is gepersonaliseerd en kan leeg zijn als de recommendation-service (nog) niks teruggeeft
+    // of als de upload nog wordt verwerkt. Val dan terug op `/videos` (algemene lijst).
+    if (!normalized.items.length) {
+      const fallback = await fallbackToAllVideos();
+      if (fallback && fallback.items.length) {
+        console.log(`[VideoAPI] Feed leeg; fallback ${fallback.items.length} video's geladen (/videos)`);
+        return fallback;
+      }
+      console.log('[VideoAPI] Feed leeg en /videos ook leeg');
+      return normalized;
     }
-    
-    console.log(`[VideoAPI] ${data.items.length} video's geladen`);
-    
-    return data;
+
+    await enrichItemsWithSignedUrls(normalized.items);
+    console.log(`[VideoAPI] ${normalized.items.length} video's geladen (/feed)`);
+    return normalized;
   } catch (err: any) {
     // Als het een netwerk error is, geef specifieke melding
     if (err?.message?.includes("Verbinding duurde te lang")) {
@@ -277,6 +322,148 @@ export interface UploadResponse {
   uploadUrl: string;
   muxUploadId?: string;
 }
+
+export const getPlayableVideoUrl = (item: Partial<FeedItem> | null | undefined): string | null => {
+  if (!item) return null;
+  const streamUrl =
+    item.stream?.find((s) => s?.protocol === "hls" && typeof s?.url === "string" && s.url.length)?.url ||
+    item.stream?.find((s) => typeof s?.url === "string" && s.url.length)?.url;
+  const url = item.signedUrl || streamUrl || item.progressiveUrl;
+  return typeof url === "string" && url.length ? url : null;
+};
+
+type SignedUrlCacheEntry = { url: string; expiresAtMs: number };
+const signedUrlCache = new Map<string, SignedUrlCacheEntry>();
+const signedUrlNegativeCache = new Map<string, number>();
+
+const getCachedSignedUrl = (videoId: string | number): string | null => {
+  const key = String(videoId);
+  const entry = signedUrlCache.get(key);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAtMs) {
+    signedUrlCache.delete(key);
+    return null;
+  }
+  return entry.url;
+};
+
+const getStreamUrl = async (videoId: string | number): Promise<string> => {
+  const res = await videoRequestWithAuth(
+    `/videos/${encodeURIComponent(String(videoId))}/stream`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    },
+    REQUEST_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const errorMsg = await parseErrorMessage(res);
+    throw new Error(errorMsg || `Kon stream url niet ophalen (${res.status})`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const variants: any[] =
+    Array.isArray(data?.variants) ? data.variants : Array.isArray(data) ? data : Array.isArray(data?.stream) ? data.stream : [];
+
+  const hls = variants.find((v) => v?.protocol === "hls" && typeof v?.url === "string" && v.url.length)?.url;
+  const progressive = variants.find((v) => v?.protocol === "progressive" && typeof v?.url === "string" && v.url.length)?.url;
+  const any = variants.find((v) => typeof v?.url === "string" && v.url.length)?.url;
+  const url = hls || progressive || any;
+
+  if (!url) {
+    throw new Error("Stream varianten zijn nog niet beschikbaar.");
+  }
+
+  return url;
+};
+
+export async function getSignedPlaybackUrl(
+  videoId: string | number,
+  expirationSeconds: number = 3600
+): Promise<string> {
+  const cached = getCachedSignedUrl(videoId);
+  if (cached) return cached;
+
+  const negativeUntil = signedUrlNegativeCache.get(String(videoId));
+  if (negativeUntil && Date.now() < negativeUntil) {
+    throw new Error("Signed URL nog niet beschikbaar.");
+  }
+
+  const res = await videoRequestWithAuth(
+    `/videos/${encodeURIComponent(String(videoId))}/signed-url?type=video&expiration=${expirationSeconds}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    },
+    REQUEST_TIMEOUT_MS
+  );
+
+  if (!res.ok) {
+    const errorMsg = await parseErrorMessage(res);
+
+    // Vaak betekent dit: video bestaat wel, maar Mux asset/playback is nog niet ready.
+    // Cache dit kort zodat we niet blijven spammen met signed-url requests.
+    if (res.status === 404) {
+      signedUrlNegativeCache.set(String(videoId), Date.now() + 30_000);
+    } else if (res.status === 503) {
+      signedUrlNegativeCache.set(String(videoId), Date.now() + 10_000);
+    }
+
+    throw new Error(errorMsg || `Kon signed url niet ophalen (${res.status})`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const url =
+    data?.signed_url ||
+    data?.signedUrl ||
+    data?.signedURL ||
+    data?.url ||
+    data?.playbackUrl;
+
+  if (!url || typeof url !== "string") {
+    throw new Error("Signed URL response was leeg of ongeldig.");
+  }
+
+  const expiresIn = Number(data?.expires_in ?? data?.expiresIn ?? expirationSeconds);
+  const expiresAtMs = Date.now() + Math.max(30, expiresIn - 30) * 1000;
+  signedUrlCache.set(String(videoId), { url, expiresAtMs });
+  return url;
+}
+
+const getPlayableUrlForVideoId = async (videoId: string | number): Promise<string> => {
+  try {
+    return await getSignedPlaybackUrl(videoId, 24 * 3600);
+  } catch {
+    // Signed-url kan 404 zijn terwijl stream endpoint al wel werkt (of vice versa).
+    return await getStreamUrl(videoId);
+  }
+};
+
+const enrichItemsWithSignedUrls = async (items: FeedItem[], concurrency: number = 3) => {
+  const queue = items
+    .filter((item) => item?.id != null)
+    .filter((item) => !item.signedUrl)
+    .filter((item) => !getPlayableVideoUrl(item)); // only if we have no usable url
+
+  if (!queue.length) return items;
+
+  let index = 0;
+  const runWorker = async () => {
+    while (index < queue.length) {
+      const current = queue[index++];
+      try {
+        const playableUrl = await getPlayableUrlForVideoId(current.id);
+        current.signedUrl = playableUrl;
+      } catch {
+        // Ignore per-item failures (video might still be processing)
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, runWorker));
+  return items;
+};
 
 export async function createVideoUpload(
   payload: CreateVideoRequest
@@ -421,7 +608,8 @@ export async function getMyVideos(): Promise<FeedResponse> {
     ).trim();
 
     if (!tokenUserId) {
-      return { items, total };
+      const enriched = await enrichItemsWithSignedUrls(items);
+      return { items: enriched, total };
     }
 
     const filtered = items.filter((video) => {
@@ -431,11 +619,10 @@ export async function getMyVideos(): Promise<FeedResponse> {
       return ownerId === tokenUserId || userId === tokenUserId || ownerIdAlt === tokenUserId;
     });
 
-    console.log(
-      `[VideoAPI] ${filtered.length}/${items.length} eigen video's geladen (fallback /videos)`
-    );
+    const enriched = await enrichItemsWithSignedUrls(filtered);
 
-    return { items: filtered, total: filtered.length };
+    console.log(`[VideoAPI] ${enriched.length}/${items.length} eigen video's geladen (fallback /videos)`);
+    return { items: enriched, total: enriched.length };
   } catch (err: any) {
     console.error('[VideoAPI] Get my videos error:', err);
     throw new Error(err?.message || "Kon eigen videos niet laden");
