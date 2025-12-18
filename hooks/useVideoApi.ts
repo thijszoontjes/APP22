@@ -114,6 +114,11 @@ const requestWithFallback = async (
   for (const base of bases) {
     const url = `${base}${path}`;
     console.log(`[VideoAPI] Probeer: ${url}`);
+    console.log(`[VideoAPI] Method: ${method}`);
+    console.log(`[VideoAPI] Headers:`, init.headers);
+    if (init.body) {
+      console.log(`[VideoAPI] Body preview:`, typeof init.body === 'string' ? init.body.substring(0, 200) : init.body);
+    }
     try {
       let res = await fetchWithTimeout(url, init, timeoutMs);
       console.log(`[VideoAPI] Response: ${res.status} van ${url}`);
@@ -182,14 +187,17 @@ const videoRequestWithAuth = async (
     throw new Error("Geen toegang. Log opnieuw in.");
   }
 
-  const withAuth = (token: string) =>
-    requestWithFallback(path, {
+  const withAuth = (token: string) => {
+    const headers = {
+      ...(init.headers || {}),
+      Authorization: `Bearer ${token}`,
+    };
+    console.log('[VideoAPI] Final request headers:', headers);
+    return requestWithFallback(path, {
       ...init,
-      headers: {
-        ...(init.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
     }, VIDEO_BASE_URLS, timeoutMs);
+  };
 
   let res = await withAuth(accessToken);
   if (res.status === 401 && refreshToken) {
@@ -484,6 +492,14 @@ const attachLocalUris = (items: FeedItem[]) => {
 export async function createVideoUpload(
   payload: CreateVideoRequest
 ): Promise<UploadResponse> {
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('[VideoAPI] 🎬 CREATE VIDEO UPLOAD');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('[VideoAPI] Timestamp:', new Date().toISOString());
+  console.log('[VideoAPI] Available video base URLs:', VIDEO_BASE_URLS);
+  console.log('[VideoAPI] Original payload:', JSON.stringify(payload, null, 2));
+  
   // Backend validatie blijkt in productie soms strenger dan de OpenAPI beschrijving.
   // Stuur daarom standaard een minimale payload (alleen `title` + optioneel `contentType`).
   // Extra metadata kan later toegevoegd worden als de backend dit overal accepteert.
@@ -492,20 +508,42 @@ export async function createVideoUpload(
     ...(payload.contentType ? { contentType: payload.contentType } : {}),
   };
 
-  console.log('[VideoAPI] Create upload with payload:', uploadPayload);
+  console.log('[VideoAPI] Minimized payload for backend:', JSON.stringify(uploadPayload, null, 2));
+  console.log('[VideoAPI] Endpoint: POST /videos');
+  console.log('[VideoAPI] Timeout:', CREATE_UPLOAD_TIMEOUT_MS, 'ms');
+  
+  // Log de exacte body die we gaan versturen
+  const bodyString = JSON.stringify(uploadPayload);
+  console.log('[VideoAPI] Request body (raw JSON string):', bodyString);
+  console.log('[VideoAPI] Body length:', bodyString.length, 'bytes');
+  console.log('');
 
   try {
+    const requestHeaders = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    console.log('[VideoAPI] Request headers (before auth):', requestHeaders);
+    
     const res = await videoRequestWithAuth("/videos", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(uploadPayload),
+      headers: requestHeaders,
+      body: bodyString,
     }, CREATE_UPLOAD_TIMEOUT_MS);
+
+    console.log('[VideoAPI] ✓ Response received:');
+    console.log('[VideoAPI]   - Status:', res.status, res.statusText);
+    console.log('[VideoAPI]   - URL:', res.url);
+    console.log('[VideoAPI]   - Headers:', Object.fromEntries(res.headers.entries()));
+    console.log('');
 
     if (!res.ok) {
       const errorMsg = await parseErrorMessage(res);
-      console.error('[VideoAPI] Upload creation failed:', res.status, errorMsg);
+      console.error('[VideoAPI] ✗ Upload creation FAILED');
+      console.error('[VideoAPI]   - Status:', res.status);
+      console.error('[VideoAPI]   - Error message:', errorMsg);
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('');
       
       if (res.status === 401) {
         throw new Error("Sessie verlopen. Log opnieuw in.");
@@ -513,14 +551,38 @@ export async function createVideoUpload(
       if (res.status === 400) {
         throw new Error(`Validatie error: ${errorMsg}. Controleer of alle velden correct zijn ingevuld.`);
       }
+      if (res.status === 503) {
+        throw new Error(`Video service tijdelijk niet beschikbaar (503). Probeer het over een paar minuten opnieuw.\n\nDit kan betekenen:\n- Backend is overbelast\n- Mux service heeft problemen\n- Database connectie faalt`);
+      }
       throw new Error(errorMsg || `Upload mislukt (${res.status})`);
     }
 
-    const data = await res.json();
-    console.log('[VideoAPI] Upload created:', data);
+    const text = await res.text();
+    console.log('[VideoAPI] Response body (raw):', text);
+    
+    const data = text ? JSON.parse(text) : null;
+    console.log('[VideoAPI] ✓ Upload created successfully!');
+    console.log('[VideoAPI] Response data:', JSON.stringify(data, null, 2));
+    
+    if (data?.uploadUrl) {
+      console.log('[VideoAPI] ✓ Upload URL received:', data.uploadUrl.substring(0, 100) + '...');
+      console.log('[VideoAPI] Mux upload ID:', data.muxUploadId || 'N/A');
+      console.log('[VideoAPI] Video ID:', data.id || 'N/A');
+    } else {
+      console.warn('[VideoAPI] ⚠️  No uploadUrl in response!');
+    }
+    
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
     return data;
   } catch (err: any) {
-    console.error('[VideoAPI] Create upload error:', err);
+    console.error('');
+    console.error('[VideoAPI] ✗ EXCEPTION during upload creation:');
+    console.error('[VideoAPI] Error type:', err?.name);
+    console.error('[VideoAPI] Error message:', err?.message);
+    console.error('[VideoAPI] Stack trace:', err?.stack);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
     throw new Error(err?.message || "Kon upload niet starten");
   }
 }
@@ -530,33 +592,74 @@ export async function uploadVideoToMux(
   videoFile: Blob | File | string,
   contentType?: string
 ): Promise<void> {
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('[VideoAPI] 📤 UPLOAD VIDEO TO MUX');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('[VideoAPI] Timestamp:', new Date().toISOString());
+  console.log('[VideoAPI] Upload URL:', uploadUrl.substring(0, 100) + '...');
+  console.log('[VideoAPI] Video file type:', typeof videoFile);
+  console.log('[VideoAPI] Content-Type:', contentType || 'auto-detect');
+  
+  if (typeof videoFile === 'string') {
+    console.log('[VideoAPI] File is string (URI):', videoFile.substring(0, 100));
+  } else if (videoFile instanceof Blob) {
+    console.log('[VideoAPI] File is Blob, size:', videoFile.size, 'bytes');
+    console.log('[VideoAPI] File type:', videoFile.type);
+  }
+  console.log('');
+  
   try {
     if (typeof videoFile === "string") {
       const isLocalFileUri = /^file:\/\//i.test(videoFile);
+      console.log('[VideoAPI] Is local file URI:', isLocalFileUri);
+      
       if (!isLocalFileUri) {
+        console.log('[VideoAPI] Remote URL detected, fetching as blob first...');
         const blobRes = await fetch(videoFile);
         if (!blobRes.ok) {
+          console.error('[VideoAPI] ✗ Failed to fetch video file:', blobRes.status);
           throw new Error("Video bestand niet gevonden");
         }
         const blob = await blobRes.blob();
+        console.log('[VideoAPI] Blob fetched, size:', blob.size, 'bytes');
         return await uploadVideoToMux(uploadUrl, blob, contentType);
       }
 
+      console.log('[VideoAPI] Using FileSystem.uploadAsync for local file...');
+      console.log('[VideoAPI] File path:', videoFile);
+      
       const result = await FileSystem.uploadAsync(uploadUrl, videoFile, {
         httpMethod: "PUT",
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
         headers: contentType ? { "Content-Type": contentType } : undefined,
       });
 
+      console.log('[VideoAPI] Upload result:');
+      console.log('[VideoAPI]   - Status:', result.status);
+      console.log('[VideoAPI]   - Headers:', result.headers);
+      console.log('[VideoAPI]   - Body:', result.body?.substring(0, 200));
+
       if (result.status < 200 || result.status >= 300) {
         const suffix = result.body ? ` - ${result.body}` : "";
+        console.error('[VideoAPI] ✗ Upload to Mux FAILED:', result.status);
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log('');
         throw new Error(`Upload mislukt: ${result.status}${suffix}`);
       }
+      
+      console.log('[VideoAPI] ✓ Upload to Mux SUCCESS!');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('');
       return;
     }
 
     const resolvedContentType =
       contentType || ("type" in videoFile && (videoFile as any).type) || "application/octet-stream";
+
+    console.log('[VideoAPI] Using fetch to upload blob...');
+    console.log('[VideoAPI] Content-Type:', resolvedContentType);
+    console.log('[VideoAPI] Blob size:', (videoFile as Blob).size, 'bytes');
 
     const res = await fetch(uploadUrl, {
       method: "PUT",
@@ -566,12 +669,31 @@ export async function uploadVideoToMux(
       body: videoFile as Blob,
     });
 
+    console.log('[VideoAPI] Mux response:');
+    console.log('[VideoAPI]   - Status:', res.status, res.statusText);
+    console.log('[VideoAPI]   - Headers:', Object.fromEntries(res.headers.entries()));
+
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       const suffix = body ? ` - ${body}` : "";
+      console.error('[VideoAPI] ✗ Upload to Mux FAILED:', res.status);
+      console.error('[VideoAPI] Response body:', body);
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('');
       throw new Error(`Upload mislukt: ${res.status}${suffix}`);
     }
+    
+    console.log('[VideoAPI] ✓ Upload to Mux SUCCESS!');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
   } catch (err: any) {
+    console.error('');
+    console.error('[VideoAPI] ✗ EXCEPTION during Mux upload:');
+    console.error('[VideoAPI] Error type:', err?.name);
+    console.error('[VideoAPI] Error message:', err?.message);
+    console.error('[VideoAPI] Stack trace:', err?.stack);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
     throw new Error(err?.message || "Video upload mislukt");
   }
 }
