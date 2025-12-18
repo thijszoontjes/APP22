@@ -56,8 +56,8 @@ export const VIDEO_BASE_URLS = Array.from(
   new Set(
     [
       process.env.EXPO_PUBLIC_VIDEO_URL,
+      DEFAULT_VIDEO_BASE_URL, // Werkende URL met dubbele service-naam eerst!
       SECONDARY_VIDEO_BASE_URL,
-      DEFAULT_VIDEO_BASE_URL,
       SECONDARY_VIDEO_BASE_URL_HTTP,
     ]
       .filter(isString)

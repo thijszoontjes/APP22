@@ -104,16 +104,17 @@ export default function SearchScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={styles.infoText}>Zoek naar personen op naam, email, functie of sector en bekijk hun profiel of start een chat</Text>
+        <Text style={styles.infoText}>Zoek naar personen op volledige naam (voornaam + achternaam)</Text>
+        <Text style={styles.exampleText}>Voorbeeld: "Jan Jansen" of "Marie de Vries"</Text>
         
         <View style={styles.searchBox}>
           <TextInput
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Zoek op naam of email..."
+            placeholder="Voornaam Achternaam"
             placeholderTextColor="#999"
-            autoCapitalize="none"
+            autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="search"
           />
@@ -150,7 +151,8 @@ export default function SearchScreen() {
         {!loading && !error && results.length === 0 && query.trim().length === 0 && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Zoek naar personen</Text>
-            <Text style={styles.emptySubtext}>Begin met typen om te zoeken op naam, email, functie of sector</Text>
+            <Text style={styles.emptySubtext}>Voer een volledige naam in om te zoeken</Text>
+            <Text style={styles.emptySubtext}>Bijvoorbeeld: "Jan Jansen"</Text>
           </View>
         )}
 
@@ -192,7 +194,7 @@ export default function SearchScreen() {
                 style={styles.profileButton}
                 onPress={() => handleProfilePress(result)}
               >
-                <Text style={styles.profileButtonText}>Chat starten</Text>
+                <Text style={styles.profileButtonText}>Open profiel</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.divider} />
@@ -227,9 +229,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 4,
     lineHeight: 20,
     paddingHorizontal: 10,
+  },
+  exampleText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 14,
+    fontStyle: 'italic',
   },
   searchBox: {
     flexDirection: 'row',
