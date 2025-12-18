@@ -8,6 +8,8 @@ import { ActivityIndicator, Image, ImageSourcePropType, RefreshControl, ScrollVi
 const ORANGE = '#FF8700';
 
 type ChatListItem = {
+  email: string;
+  userId?: string;
   id: string;
   name: string;
   message: string;
@@ -18,7 +20,8 @@ type ChatListItem = {
 };
 
 type StoredChatRef = {
-  userId: string;
+  email: string;
+  userId?: string;
   name?: string;
 };
 
@@ -27,7 +30,7 @@ const LAST_CHATS_KEY = 'last_chats_v1';
 export default function ChatPage() {
   const router = useRouter();
   const [chats, setChats] = useState<ChatListItem[]>([]);
-  const [manualId, setManualId] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -40,28 +43,38 @@ export default function ChatPage() {
       if (!Array.isArray(parsed)) return [];
       return parsed
         .map((item: any) => {
-          const rawId = typeof item?.userId === 'string' ? item.userId : item?.userId?.toString?.();
-          const userId = typeof rawId === 'string' ? rawId.trim() : '';
-          if (!userId) return null;
+          const rawEmail =
+            typeof item?.email === 'string' ? item.email :
+            typeof item?.userEmail === 'string' ? item.userEmail :
+            (typeof item?.userId === 'string' && item.userId.includes('@') ? item.userId : '');
+          const email = typeof rawEmail === 'string' ? rawEmail.trim() : '';
+          if (!email || !email.includes('@')) {
+            if (item?.userId) {
+              console.log('[ChatPage] Sla opgeslagen contact zonder e-mail over:', item?.userId);
+            }
+            return null;
+          }
+          const userId = typeof item?.userId === 'string' && !item.userId.includes('@') ? item.userId.trim() : undefined;
           return {
+            email,
             userId,
             name: typeof item?.name === 'string' ? item.name : undefined,
           };
         })
-        .filter((item: StoredChatRef | null): item is StoredChatRef => Boolean(item?.userId));
+        .filter((item: StoredChatRef | null): item is StoredChatRef => Boolean(item?.email));
     } catch {
       return [];
     }
   }, []);
 
   const upsertStoredChat = useCallback(async (contact: StoredChatRef) => {
-    const normalizedId = contact.userId.trim();
-    if (!normalizedId) {
+    const normalizedEmail = contact.email.trim();
+    if (!normalizedEmail) {
       return;
     }
     const current = await readStoredChats();
-    const filtered = current.filter(c => c.userId !== normalizedId);
-    const next = [{ userId: normalizedId, name: contact.name }, ...filtered].slice(0, 10);
+    const filtered = current.filter(c => c.email !== normalizedEmail);
+    const next = [{ email: normalizedEmail, userId: contact.userId, name: contact.name }, ...filtered].slice(0, 10);
     try {
       await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(next));
     } catch {
@@ -70,20 +83,24 @@ export default function ChatPage() {
   }, [readStoredChats]);
 
   const fetchPreview = useCallback(async (contact: StoredChatRef): Promise<ChatListItem | null> => {
-    const userId = contact.userId.trim();
-    if (!userId) {
+    const email = contact.email.trim();
+    const userId = contact.userId?.trim();
+    if (!email) {
       return null;
     }
     try {
       const [user, messages] = await Promise.allSettled([
-        getUserById(userId),
-        fetchConversation(userId),
+        userId ? getUserById(userId) : Promise.resolve(null as any),
+        fetchConversation(email),
       ]);
 
-      let name = contact.name || `Gebruiker ${userId}`;
-      if (user.status === 'fulfilled') {
+      let name = contact.name || '';
+      if (user.status === 'fulfilled' && user.value) {
         const maybeName = [user.value.first_name, user.value.last_name].filter(Boolean).join(' ').trim();
         if (maybeName) name = maybeName;
+      }
+      if (!name) {
+        name = 'Onbekende contact';
       }
 
       const list = messages.status === 'fulfilled' && Array.isArray(messages.value) ? messages.value : [];
@@ -96,7 +113,9 @@ export default function ChatPage() {
       }
 
       return {
-        id: userId,
+        id: email,
+        email,
+        userId,
         name,
         message: last?.content || 'Nog geen berichten',
         time: formatTimeLabel(last?.created_at),
@@ -126,14 +145,14 @@ export default function ChatPage() {
       const saved = await readStoredChats();
       if (!saved.length) {
         setChats([]);
-        setError('We hebben nog geen video-feed; gebruik het ID/UUID-veld bovenaan om een chat te starten.');
+        setError('We hebben nog geen video-feed; gebruik het e-mailadresveld bovenaan om een chat te starten.');
       } else {
         const previews = await Promise.all(saved.map(fetchPreview));
         const filtered = previews.filter(Boolean) as ChatListItem[];
         
         // Remove chats without messages from storage
-        const validUserIds = filtered.map(chat => chat.id);
-        const validContacts = saved.filter(contact => validUserIds.includes(contact.userId));
+        const validEmails = filtered.map(chat => chat.email);
+        const validContacts = saved.filter(contact => validEmails.includes(contact.email));
         
         if (validContacts.length !== saved.length) {
           // Update storage to only keep valid chats
@@ -149,7 +168,7 @@ export default function ChatPage() {
         setChats(filtered);
         
         if (filtered.length === 0) {
-          setError('Geen actieve gesprekken gevonden. Start een chat met het ID/UUID-veld bovenaan.');
+          setError('Geen actieve gesprekken gevonden. Start een chat met het e-mailadresveld bovenaan.');
         }
       }
     } catch (err: any) {
@@ -168,22 +187,22 @@ export default function ChatPage() {
   const handleOpenDM = (chat: ChatListItem) => {
     router.push({
       pathname: '/dm',
-      params: { userId: chat.id.toString(), userName: chat.name },
+      params: { userEmail: chat.email, userId: chat.userId, userName: chat.name },
     });
   };
 
   const handleStartManual = async () => {
-    const normalizedId = manualId.trim();
-    if (!normalizedId) {
-      setError('Vul een geldig gebruikers-ID of UUID in.');
+    const normalizedEmail = manualEmail.trim();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setError('Vul een geldig e-mailadres in.');
       return;
     }
-    await upsertStoredChat({ userId: normalizedId });
+    await upsertStoredChat({ email: normalizedEmail });
     setError('');
     await loadChats();
     router.push({
       pathname: '/dm',
-      params: { userId: normalizedId, userName: `Gebruiker ${normalizedId}` },
+      params: { userEmail: normalizedEmail, userName: 'Onbekende contact' },
     });
   };
 
@@ -197,9 +216,9 @@ export default function ChatPage() {
           <View style={styles.manualInputs}>
             <TextInput
               style={styles.manualIdInput}
-              value={manualId}
-              onChangeText={setManualId}
-              placeholder="Gebruikers-ID of UUID"
+              value={manualEmail}
+              onChangeText={setManualEmail}
+              placeholder="E-mailadres ontvanger"
               placeholderTextColor="#8a8a8a"
               autoCapitalize="none"
               autoCorrect={false}
@@ -208,7 +227,7 @@ export default function ChatPage() {
           <TouchableOpacity style={styles.manualButton} onPress={handleStartManual} activeOpacity={0.85}>
             <Text style={styles.manualButtonText}>Open chat</Text>
           </TouchableOpacity>
-          <Text style={styles.infoText}>Geen video-feed beschikbaar; gebruik tijdelijk het ID of de UUID van een gebruiker om een chat te starten.</Text>
+          <Text style={styles.infoText}>Gebruik het e-mailadres van de ontvanger om een chat te starten.</Text>
         </View>
         <ScrollView
           style={styles.list}
@@ -231,7 +250,7 @@ export default function ChatPage() {
           {emptyState ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>Nog geen gesprekken</Text>
-              <Text style={styles.emptyText}>Start een chat met het ID/UUID-veld bovenaan om gesprekken te openen.</Text>
+              <Text style={styles.emptyText}>Start een chat met het e-mailadresveld bovenaan om gesprekken te openen.</Text>
             </View>
           ) : null}
           {chats.map(chat => (

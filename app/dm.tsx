@@ -27,6 +27,11 @@ type ChatMessage = {
   createdAt: Date;
 };
 
+const deriveDisplayName = (maybeName?: string) => {
+  if (!maybeName) return '';
+  return maybeName.includes('@') ? '' : maybeName;
+};
+
 export default function DMChatPage() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -43,7 +48,7 @@ export default function DMChatPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [contactEmail, setContactEmail] = useState<string | null>(initialEmail || null);
-  const [contactName, setContactName] = useState<string | undefined>(userName);
+  const [contactName, setContactName] = useState<string | undefined>(deriveDisplayName(userName));
   const scrollRef = useRef<ScrollView>(null);
 
   const dayLabel = useMemo(() => {
@@ -62,11 +67,11 @@ export default function DMChatPage() {
 
   useEffect(() => {
     loadConversation();
-  }, [userId]);
+  }, [contactEmail, initialEmail]);
 
   useEffect(() => {
     if (!userId) {
-      setContactEmail(null);
+      setContactEmail(contactEmail || null);
       return;
     }
 
@@ -75,14 +80,17 @@ export default function DMChatPage() {
       try {
         const profile = await getUserById(userId);
         if (cancelled) return;
-        setContactEmail(profile.email || null);
+        if (profile.email) {
+          console.log('[DM] Ontvanger e-mail geladen via profiel:', profile.email);
+          setContactEmail(profile.email);
+        }
         const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
         if (profileName) {
           setContactName(profileName);
         }
       } catch (err: any) {
         console.log('[DM] Kon ontvanger niet laden voor notificaties:', err?.message || err);
-        setContactEmail(null);
+        setContactEmail(contactEmail || null);
       }
     };
 
@@ -103,8 +111,10 @@ export default function DMChatPage() {
   };
 
   const loadConversation = async () => {
-    if (!userId) {
-      setError('Geen geldig gebruikers-id meegegeven voor deze chat.');
+    const targetEmail = (contactEmail || initialEmail || '').trim();
+    if (!targetEmail) {
+      console.warn('[DM] Geen e-mailadres beschikbaar voor deze chat.');
+      setError('Geen geldig e-mailadres meegegeven voor deze chat.');
       setLoading(false);
       setRefreshing(false);
       return;
@@ -112,10 +122,11 @@ export default function DMChatPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetchConversation(userId);
+      console.log('[DM] Ophalen gesprek met:', targetEmail);
+      const res = await fetchConversation(targetEmail);
       const list = Array.isArray(res) ? res : [];
       const parsed = list
-        .map((msg: ApiChatMessage) => mapToUiMessage(msg, userId))
+        .map((msg: ApiChatMessage) => mapToUiMessage(msg, targetEmail))
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       setMessages(parsed);
     } catch (err: any) {
@@ -152,15 +163,17 @@ export default function DMChatPage() {
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-    if (!userId) {
-      setError('Geen ontvanger gevonden om een bericht naar te sturen.');
+    const targetEmail = (contactEmail || initialEmail || '').trim();
+    if (!targetEmail) {
+      setError('Geen ontvanger-e-mailadres beschikbaar.');
       return;
     }
     setSending(true);
     const now = new Date();
     try {
-      const sent = await sendChatMessage({ receiver_id: userId, receiver_email: contactEmail || initialEmail || undefined, content: trimmed });
-      const uiMessage: ChatMessage = mapToUiMessage(sent, userId, 'me') || {
+      console.log('[DM] Verstuur bericht naar:', targetEmail);
+      const sent = await sendChatMessage({ receiver_email: targetEmail, content: trimmed });
+      const uiMessage: ChatMessage = mapToUiMessage(sent, targetEmail, 'me') || {
         id: sent?.id || `${Date.now()}`,
         text: trimmed,
         from: 'me',
@@ -180,7 +193,7 @@ export default function DMChatPage() {
   return (
     <View style={styles.container}>
       <AppHeader
-        title={contactName || userName}
+        title={contactName || deriveDisplayName(userName) || 'Onbekende contact'}
         leading={
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
             <ArrowBackSvg width={24} height={24} />
@@ -270,10 +283,11 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function mapToUiMessage(apiMessage: ApiChatMessage, withUserId: string, forceFrom?: 'me' | 'them'): ChatMessage {
-  const partnerId = String(withUserId);
+function mapToUiMessage(apiMessage: ApiChatMessage, partnerEmail: string, forceFrom?: 'me' | 'them'): ChatMessage {
+  const normalizedPartner = (partnerEmail || '').toLowerCase();
+  const senderEmail = (apiMessage?.sender_email || '').toLowerCase();
   const created = new Date(apiMessage?.created_at || Date.now());
-  const from: 'me' | 'them' = forceFrom || (String(apiMessage.sender_id) === partnerId ? 'them' : 'me');
+  const from: 'me' | 'them' = forceFrom || (normalizedPartner && senderEmail === normalizedPartner ? 'them' : 'me');
   return {
     id: apiMessage.id,
     text: apiMessage.content || '',
