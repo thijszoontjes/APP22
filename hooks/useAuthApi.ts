@@ -70,16 +70,15 @@ export interface UserInterestsInput {
 
 export interface SendMessageRequest {
   content: string;
-  receiver_id: string;
-  receiver_email?: string;
+  receiver_email: string;
 }
 
 export interface ChatMessage {
   content: string;
   created_at: string;
   id: string | number;
-  receiver_id: string | number;
-  sender_id: string | number;
+  receiver_email?: string;
+  sender_email?: string;
 }
 
 export interface NotificationRequest {
@@ -942,14 +941,15 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   }
 }
 
-export async function fetchConversation(withUserId: string | number): Promise<ChatMessage[]> {
-  const userId = String(withUserId || "").trim();
-  if (!userId) {
-    throw new Error("Ongeldig gebruikers-id om mee te chatten.");
+export async function fetchConversation(withUserEmail: string): Promise<ChatMessage[]> {
+  const email = String(withUserEmail || "").trim();
+  if (!email) {
+    throw new Error("Ongeldig e-mailadres om mee te chatten.");
   }
+  console.log("[ChatAPI] Haal gesprek op met:", email);
   try {
     const res = await withAutoRefresh(
-      [`/chat/messages?with=${encodeURIComponent(userId)}`],
+      [`/chat/messages?with=${encodeURIComponent(email)}`],
       {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -970,49 +970,22 @@ export async function fetchConversation(withUserId: string | number): Promise<Ch
   }
 }
 
-export async function fetchAllMyMessages(): Promise<ChatMessage[]> {
-  try {
-    const res = await withAutoRefresh(
-      ["/chat/messages"],
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      },
-      CHAT_BASE_URLS,
-    );
-    if (!res.ok) {
-      if (res.status === 404 || res.status === 400) {
-        // Sommige implementaties vereisen `with`; in dat geval tonen we een lege lijst
-        return [];
-      }
-      throw new Error(await parseErrorMessage(res));
-    }
-    const text = await res.text();
-    if (!text) return [];
-    return JSON.parse(text);
-  } catch (err: any) {
-    // Als de server een 400 terugstuurt omdat `with` ontbreekt, behandel dat als "geen berichten".
-    const message = err?.message?.toLowerCase?.() || "";
-    if (message.includes("400") || message.includes("with")) {
-      return [];
-    }
-    throw new Error(normalizeNetworkError(err));
-  }
+export async function fetchAllMyMessages(withUserEmail: string): Promise<ChatMessage[]> {
+  // Wrapper zodat callsites een e-mailadres doorgeven conform de nieuwste API docs
+  return fetchConversation(withUserEmail);
 }
 
 export async function sendChatMessage(payload: SendMessageRequest): Promise<ChatMessage> {
-  if (!payload?.content || !payload.receiver_id) {
+  if (!payload?.content || !payload.receiver_email) {
     throw new Error("Bericht en ontvanger zijn verplicht.");
   }
-  const receiverId = String(payload.receiver_id || "").trim();
-  if (!receiverId) {
-    throw new Error("Ongeldig ontvanger-id.");
+  const receiverEmail = String(payload.receiver_email || "").trim();
+  if (!receiverEmail) {
+    throw new Error("Ongeldig ontvanger-e-mailadres.");
   }
+  console.log("[ChatAPI] Verstuur bericht naar:", receiverEmail);
   try {
-    const body: any = { ...payload, receiver_id: receiverId };
-    if (!payload.receiver_email) {
-      delete body.receiver_email;
-    }
+    const body: any = { ...payload, receiver_email: receiverEmail };
     const res = await withAutoRefresh(
       ["/chat/send"],
       {
@@ -1025,7 +998,9 @@ export async function sendChatMessage(payload: SendMessageRequest): Promise<Chat
     if (!res.ok) {
       throw new Error(await parseErrorMessage(res));
     }
-    return await res.json();
+    const text = await res.text();
+    console.log("[ChatAPI] Response status:", res.status, "body:", text || "<leeg>");
+    return text ? JSON.parse(text) : { content: payload.content, receiver_email: receiverEmail, created_at: new Date().toISOString(), id: Date.now() };
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
