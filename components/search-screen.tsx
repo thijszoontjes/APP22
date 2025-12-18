@@ -1,7 +1,7 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
 import AppHeader from '@/components/app-header';
-import { searchUsers, getUserByName, type UserModel } from '@/hooks/useAuthApi';
+import { searchUsers, type UserModel } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -194,7 +194,7 @@ export default function SearchScreen() {
                 style={styles.profileButton}
                 onPress={() => handleProfilePress(result)}
               >
-                <Text style={styles.profileButtonText}>Chat starten</Text>
+                <Text style={styles.profileButtonText}>Open profiel</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.divider} />

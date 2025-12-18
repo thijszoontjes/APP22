@@ -1,7 +1,7 @@
+import { resetPasswordApi } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { resetPasswordApi } from '@/hooks/useAuthApi';
 
 const ORANGE = '#FF8700';
 
