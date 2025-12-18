@@ -1,8 +1,8 @@
+import { Buffer } from "buffer";
+import * as FileSystem from "expo-file-system/legacy";
 import { BASE_URLS, VIDEO_BASE_URLS } from "../constants/api";
 import { getLocalUriByUploadedVideoId } from "../constants/pitch-store";
 import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
-import * as FileSystem from "expo-file-system/legacy";
-import { Buffer } from "buffer";
 
 export interface StreamVariant {
   url: string;
