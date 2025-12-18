@@ -249,12 +249,6 @@ export default function ProfilePage() {
         <Text style={styles.profileDetails}>
           {profile?.email || 'Anna01@gmail.com'}
         </Text>
-        {profile?.id ? (
-          <View style={styles.uuidBadge}>
-            <Text style={styles.uuidLabel}>Jouw gebruikers-ID (UUID)</Text>
-            <Text style={styles.uuidValue}>{profile.id}</Text>
-          </View>
-        ) : null}
         {!!profileError && (
           <Text style={[styles.profileDetails, { color: '#c1121f' }]}>
             {profileError}

@@ -2,6 +2,7 @@ import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import AppHeader from '@/components/app-header';
 import { fetchConversation, getUserById, sendChatMessage, sendNotification, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
@@ -19,17 +20,13 @@ import {
 const ORANGE = '#FF8700';
 const LIGHT_ORANGE = '#FCDCBE';
 const SOFT_GRAY = '#E7E7E7';
+const LAST_CHATS_KEY = 'last_chats_v1';
 
 type ChatMessage = {
   id: string | number;
   text: string;
   from: 'me' | 'them';
   createdAt: Date;
-};
-
-const deriveDisplayName = (maybeName?: string) => {
-  if (!maybeName) return '';
-  return maybeName.includes('@') ? '' : maybeName;
 };
 
 export default function DMChatPage() {
@@ -48,7 +45,7 @@ export default function DMChatPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [contactEmail, setContactEmail] = useState<string | null>(initialEmail || null);
-  const [contactName, setContactName] = useState<string | undefined>(deriveDisplayName(userName));
+  const [contactName, setContactName] = useState<string | undefined>(userName);
   const scrollRef = useRef<ScrollView>(null);
 
   const dayLabel = useMemo(() => {
@@ -87,6 +84,8 @@ export default function DMChatPage() {
         const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
         if (profileName) {
           setContactName(profileName);
+        } else if (!contactName && profile.email) {
+          setContactName(profile.email);
         }
       } catch (err: any) {
         console.log('[DM] Kon ontvanger niet laden voor notificaties:', err?.message || err);
@@ -110,6 +109,21 @@ export default function DMChatPage() {
     });
   };
 
+  const persistRecentContact = useCallback(async (email: string, name?: string) => {
+    const trimmedEmail = (email || '').trim();
+    if (!trimmedEmail) return;
+    try {
+      const raw = await SecureStore.getItemAsync(LAST_CHATS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(parsed) ? parsed : [];
+      const filtered = list.filter((item: any) => item?.email !== trimmedEmail);
+      const next = [{ email: trimmedEmail, userId, name: name || trimmedEmail }, ...filtered].slice(0, 10);
+      await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.log('[DM] Kon recente chat niet opslaan:', err);
+    }
+  }, [userId]);
+
   const loadConversation = async () => {
     const targetEmail = (contactEmail || initialEmail || '').trim();
     if (!targetEmail) {
@@ -123,11 +137,17 @@ export default function DMChatPage() {
     setLoading(true);
     try {
       console.log('[DM] Ophalen gesprek met:', targetEmail);
+      if (!contactName) {
+        setContactName(targetEmail);
+      }
       const res = await fetchConversation(targetEmail);
       const list = Array.isArray(res) ? res : [];
       const parsed = list
         .map((msg: ApiChatMessage) => mapToUiMessage(msg, targetEmail))
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      if (parsed.length) {
+        persistRecentContact(targetEmail, contactName || targetEmail);
+      }
       setMessages(parsed);
     } catch (err: any) {
       setError(err?.message || 'Kon gesprek niet laden.');
@@ -180,6 +200,7 @@ export default function DMChatPage() {
         createdAt: now,
       };
       setMessages((prev) => [...prev, uiMessage]);
+      persistRecentContact(targetEmail, contactName || targetEmail);
       setInput('');
       scrollToBottom(true);
       triggerNotification(trimmed);
@@ -193,7 +214,7 @@ export default function DMChatPage() {
   return (
     <View style={styles.container}>
       <AppHeader
-        title={contactName || deriveDisplayName(userName) || 'Onbekende contact'}
+        title={contactName || contactEmail || 'Onbekende contact'}
         leading={
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
             <ArrowBackSvg width={24} height={24} />

@@ -100,7 +100,7 @@ export default function ChatPage() {
         if (maybeName) name = maybeName;
       }
       if (!name) {
-        name = 'Onbekende contact';
+        name = email;
       }
 
       const list = messages.status === 'fulfilled' && Array.isArray(messages.value) ? messages.value : [];
@@ -149,12 +149,34 @@ export default function ChatPage() {
       } else {
         const previews = await Promise.all(saved.map(fetchPreview));
         const filtered = previews.filter(Boolean) as ChatListItem[];
+
+        if (filtered.length === 0) {
+          // Fallback: toon opgeslagen contacten op basis van e-mail
+          const placeholders: ChatListItem[] = saved.map(contact => {
+            const name = contact.name || contact.email;
+            return {
+              id: contact.email,
+              email: contact.email,
+              userId: contact.userId,
+              name,
+              message: 'Nog geen berichten',
+              time: '',
+              lastAt: 0,
+              initials: deriveInitials(name),
+            };
+          });
+          setChats(placeholders);
+          setError('Kon chats niet verversen; we tonen opgeslagen contacten.');
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
         
         // Remove chats without messages from storage
         const validEmails = filtered.map(chat => chat.email);
         const validContacts = saved.filter(contact => validEmails.includes(contact.email));
         
-        if (validContacts.length !== saved.length) {
+        if (filtered.length > 0 && validContacts.length !== saved.length) {
           // Update storage to only keep valid chats
           try {
             await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(validContacts));
@@ -202,7 +224,7 @@ export default function ChatPage() {
     await loadChats();
     router.push({
       pathname: '/dm',
-      params: { userEmail: normalizedEmail, userName: 'Onbekende contact' },
+      params: { userEmail: normalizedEmail, userName: normalizedEmail },
     });
   };
 
