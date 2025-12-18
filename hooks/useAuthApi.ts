@@ -450,8 +450,17 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
  * Als het email adres bestaat, wordt een reset email gestuurd met een token.
  * Retourneert altijd 200 om te voorkomen dat je kan checken welke emails bestaan.
  */
-export async function forgotPasswordApi(email: string): Promise<{ message: string }> {
+export async function forgotPasswordApi(email: string): Promise<{ message: string; token?: string }> {
   try {
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('[forgotPasswordApi] 📧 PASSWORD RESET REQUEST');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('[forgotPasswordApi] Email:', email);
+    console.log('[forgotPasswordApi] Timestamp:', new Date().toISOString());
+    console.log('[forgotPasswordApi] Available base URLs:', BASE_URLS);
+    console.log('');
+    
     const res = await requestWithFallback(
       ["/api/auth/forgot-password", "/auth/forgot-password"],
       {
@@ -463,14 +472,67 @@ export async function forgotPasswordApi(email: string): Promise<{ message: strin
       },
     );
     
+    console.log('[forgotPasswordApi] ✓ Response received:');
+    console.log('[forgotPasswordApi]   - Status:', res.status);
+    console.log('[forgotPasswordApi]   - Status Text:', res.statusText);
+    console.log('[forgotPasswordApi]   - URL:', res.url);
+    console.log('[forgotPasswordApi]   - Headers:', Object.fromEntries(res.headers.entries()));
+    console.log('');
+    
     if (!res.ok) {
       const msg = await parseErrorMessage(res);
+      console.error('[forgotPasswordApi] ✗ Request failed:', msg);
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('');
       throw new Error(msg);
     }
     
-    const data = await res.json();
+    const text = await res.text();
+    console.log('[forgotPasswordApi] Response body (raw):', text);
+    
+    const data = text ? JSON.parse(text) : null;
+    console.log('[forgotPasswordApi] Parsed response:', JSON.stringify(data, null, 2));
+    
+    // Check of er een token in de response zit (beveiligingsprobleem)
+    if (data && data.token) {
+      console.log('');
+      console.log('[forgotPasswordApi] ⚠️  SECURITY ISSUE DETECTED:');
+      console.log('[forgotPasswordApi]   Backend returns token in API response!');
+      console.log('[forgotPasswordApi]   Token should ONLY be sent via email.');
+      console.log('[forgotPasswordApi]   Anyone who knows the email can reset the password!');
+      console.log('');
+    }
+    
+    // Check of backend aangeeft dat email gestuurd wordt
+    if (data && data.message) {
+      console.log('[forgotPasswordApi] Backend message:', data.message);
+      
+      if (data.message.toLowerCase().includes('sent') || data.message.toLowerCase().includes('verstuurd')) {
+        console.log('[forgotPasswordApi] ✓ Backend indicates email will be sent');
+        console.log('[forgotPasswordApi] 📧 Check your email inbox and spam folder');
+      } else {
+        console.log('[forgotPasswordApi] ⚠️  Backend message unclear about email status');
+      }
+    }
+    
+    console.log('');
+    console.log('[forgotPasswordApi] ℹ️  IF YOU DO NOT RECEIVE AN EMAIL:');
+    console.log('[forgotPasswordApi]   1. Check spam/junk folder');
+    console.log('[forgotPasswordApi]   2. Verify email exists in system');
+    console.log('[forgotPasswordApi]   3. Backend may not have email service configured (SMTP)');
+    console.log('[forgotPasswordApi]   4. Ask backend team to check email service logs');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
+    
     return data || { message: "Als dit email adres bestaat, is er een resetlink verstuurd." };
   } catch (err: any) {
+    console.error('');
+    console.error('[forgotPasswordApi] ✗ EXCEPTION OCCURRED:');
+    console.error('[forgotPasswordApi] Error:', err);
+    console.error('[forgotPasswordApi] Message:', err?.message);
+    console.error('[forgotPasswordApi] Stack:', err?.stack);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
     throw new Error(normalizeNetworkError(err));
   }
 }
