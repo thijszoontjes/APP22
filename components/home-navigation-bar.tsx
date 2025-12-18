@@ -1,6 +1,7 @@
 import { useRouter, useSegments } from 'expo-router';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const NAV_ITEMS = [
   { name: 'Home', route: '/(tabs)', icon: require('@/assets/images/home-icon.png') },
@@ -11,13 +12,15 @@ const NAV_ITEMS = [
 export default function HomeNavigationBar() {
   const router = useRouter();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
+  
   // Determine active tab by route segment
   let activeIndex = 0;
   if (segments[1] === 'chat') activeIndex = 1;
   if (segments[1] === 'profile') activeIndex = 2;
 
   return (
-    <View style={styles.navBar}>
+    <View style={[styles.navBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom + 12, 20) : 12 }]}>
       {NAV_ITEMS.map((item, idx) => (
         <View style={styles.navItem} key={item.name}>
           {activeIndex === idx ? (
@@ -46,7 +49,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 32,
     paddingTop: 24,
-    paddingBottom: 12,
+    // paddingBottom is dynamically set based on safe area insets
     height: 90,
     borderRadius: 12,
     shadowColor: '#000',

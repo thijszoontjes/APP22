@@ -163,8 +163,8 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {!loading && results.map(result => (
-          <View key={result.id} style={styles.listItemWrap}>
+        {!loading && results.map((result, index) => (
+          <View key={`${result.id}-${index}`} style={styles.listItemWrap}>
             <View style={styles.listItem}>
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarInitials}>

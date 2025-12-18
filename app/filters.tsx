@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, NativeTouchEvent, PanResponder, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
@@ -299,7 +299,7 @@ export default function FiltersPage() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <AppHeader
         title="Filters aanpassen"
         backgroundColor="#F6F6F6"
@@ -377,7 +377,7 @@ export default function FiltersPage() {
       </ScrollView>
 
       {/* Removed custom navigation bar */}
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,12 +1,14 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
 
   // Custom tab bar component
   const ORANGE = '#FF8700';
@@ -26,6 +28,7 @@ export default function TabLayout() {
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
+        paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : insets.bottom,
       }}
       pointerEvents="box-none"
     >
