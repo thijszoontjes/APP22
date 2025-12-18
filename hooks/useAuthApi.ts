@@ -445,6 +445,74 @@ export async function registerApi(payload: RegisterPayload): Promise<UserModel> 
   }
 }
 
+/**
+ * Vraag een wachtwoord reset aan voor een email adres.
+ * Als het email adres bestaat, wordt een reset email gestuurd met een token.
+ * Retourneert altijd 200 om te voorkomen dat je kan checken welke emails bestaan.
+ */
+export async function forgotPasswordApi(email: string): Promise<{ message: string }> {
+  try {
+    const res = await requestWithFallback(
+      ["/api/auth/forgot-password", "/auth/forgot-password"],
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      },
+    );
+    
+    if (!res.ok) {
+      const msg = await parseErrorMessage(res);
+      throw new Error(msg);
+    }
+    
+    const data = await res.json();
+    return data || { message: "Als dit email adres bestaat, is er een resetlink verstuurd." };
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+/**
+ * Reset het wachtwoord met de token uit de email.
+ * @param token - De token uit de reset email
+ * @param newPassword - Het nieuwe wachtwoord
+ */
+export async function resetPasswordApi(token: string, newPassword: string): Promise<{ message: string }> {
+  try {
+    const res = await requestWithFallback(
+      ["/api/auth/reset-password", "/auth/reset-password"],
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          token, 
+          new_password: newPassword 
+        }),
+      },
+    );
+    
+    if (!res.ok) {
+      const msg = await parseErrorMessage(res);
+      
+      if (res.status === 401) {
+        throw new Error("De resetlink is ongeldig of verlopen. Vraag een nieuwe aan.");
+      }
+      
+      throw new Error(msg);
+    }
+    
+    const data = await res.json();
+    return data || { message: "Wachtwoord succesvol gereset." };
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
 export async function getDiscoveryPreferences(): Promise<{ email: string; radius_km: number }> {
   try {
     const res = await withAutoRefresh(
@@ -698,159 +766,117 @@ export async function getUserById(userId: string | number): Promise<UserModel> {
   }
 }
 
+/**
+ * Zoek een gebruiker op basis van voornaam en achternaam
+ * Gebruikt het /users/{firstname}/{lastname} endpoint
+ */
+export async function getUserByName(firstName: string, lastName: string): Promise<UserModel | null> {
+  if (!firstName || !lastName) {
+    throw new Error('Voornaam en achternaam zijn verplicht');
+  }
+
+  try {
+    const endpoint = `/users/${encodeURIComponent(firstName.trim())}/${encodeURIComponent(lastName.trim())}`;
+    
+    const res = await withAutoRefresh([endpoint], {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (res.ok) {
+      const text = await res.text();
+      if (!text) return null;
+      
+      const data = JSON.parse(text);
+      console.log('[getUserByName] Response:', data);
+      
+      // API retourneert UserPublicInfoResponse met email, first_name, last_name
+      // We converteren dit naar UserModel formaat
+      if (data && data.email) {
+        return {
+          email: data.email,
+          first_name: data.first_name || firstName,
+          last_name: data.last_name || lastName,
+        } as UserModel;
+      }
+      
+      return null;
+    }
+
+    if (res.status === 404) {
+      return null; // Gebruiker niet gevonden
+    }
+
+    const errorMsg = await parseErrorMessage(res);
+    console.error('[getUserByName] Error:', res.status, errorMsg);
+    throw new Error(errorMsg);
+  } catch (err: any) {
+    console.error('[getUserByName] Failed:', err);
+    throw err;
+  }
+}
+
 export async function searchUsers(query: string): Promise<UserModel[]> {
   if (!query || query.trim().length === 0) {
     return [];
   }
   
-  const searchTerm = query.trim().toLowerCase();
+  const searchTerm = query.trim();
   
   try {
-    // Strategie 1: Probeer dedicated search endpoint
-    const searchEndpoints = [
-      `/users/search?q=${encodeURIComponent(query.trim())}`,
-      `/api/users/search?q=${encodeURIComponent(query.trim())}`,
-      `/users/search?name=${encodeURIComponent(query.trim())}`,
-      `/api/users/search?name=${encodeURIComponent(query.trim())}`,
-      `/users/search?email=${encodeURIComponent(query.trim())}`,
-      `/api/users/search?email=${encodeURIComponent(query.trim())}`,
-    ];
+    // Detecteer of de query eruit ziet als "voornaam achternaam"
+    const nameParts = searchTerm.split(/\s+/).filter(part => part.length > 0);
     
-    try {
-      const res = await withAutoRefresh(searchEndpoints, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      if (res.ok) {
-        const text = await res.text();
-        if (!text) return [];
-        
-        const data = JSON.parse(text);
-        console.log('[searchUsers] Search response:', data);
-        
-        // Handle verschillende response formaten
-        if (Array.isArray(data)) {
-          return data;
-        } else if (data.users && Array.isArray(data.users)) {
-          return data.users;
-        } else if (data.data && Array.isArray(data.data)) {
-          return data.data;
-        } else if (data.results && Array.isArray(data.results)) {
-          return data.results;
-        }
-        
-        return [];
-      }
-      
-      // Check voor 503 Service Unavailable
-      if (res.status === 503) {
-        throw new Error('De zoekservice is tijdelijk niet beschikbaar. Probeer het over een paar minuten opnieuw.');
-      }
-      
-      if (res.status === 404) {
-        logMissingSearchEndpointOnce();
-      } else {
-        const errorMsg = await parseErrorMessage(res);
-        console.log('[searchUsers] Search endpoint returned error:', res.status, errorMsg);
-      }
-    } catch (searchErr: any) {
-      // Als het een 503 error is, gooi die door
-      if (searchErr?.message?.includes('503') || searchErr?.message?.includes('niet beschikbaar')) {
-        throw searchErr;
-      }
-      if (String(searchErr?.message || '').includes('404')) {
-        logMissingSearchEndpointOnce();
-      }
-      console.log('[searchUsers] Search endpoint not available or failed:', searchErr?.message);
-      // Continue naar strategie 2
-    }
-    
-    // Strategie 2: Haal alle gebruikers op en filter client-side
-    console.log('[searchUsers] Trying to fetch all users and filter client-side');
-    
-    const listEndpoints = [
-      '/users',
-      '/api/users',
-      '/users/all',
-      '/api/users/all',
-      '/users/list',
-      '/api/users/list'
-    ];
-    
-    const listRes = await withAutoRefresh(listEndpoints, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
-    
-    if (listRes.ok) {
-      const text = await listRes.text();
-      if (!text) return [];
-      
-      let allUsers;
+    if (nameParts.length === 2) {
+      // Query heeft twee woorden - probeer name-based search
+      const [firstName, lastName] = nameParts;
       try {
-        const parsed = JSON.parse(text);
-        // Handle verschillende response formaten
-        if (Array.isArray(parsed)) {
-          allUsers = parsed;
-        } else if (parsed.users && Array.isArray(parsed.users)) {
-          allUsers = parsed.users;
-        } else if (parsed.data && Array.isArray(parsed.data)) {
-          allUsers = parsed.data;
+        console.log('[searchUsers] Name-based search:', firstName, lastName);
+        const user = await getUserByName(firstName, lastName);
+        if (user) {
+          console.log('[searchUsers] Found user:', user);
+          return [user];
         } else {
-          console.log('[searchUsers] Unexpected response format:', parsed);
+          console.log('[searchUsers] No user found with this name');
           return [];
         }
-      } catch (parseErr) {
-        console.error('[searchUsers] Failed to parse response:', parseErr);
-        return [];
+      } catch (nameErr: any) {
+        console.error('[searchUsers] Name search failed:', nameErr?.message);
+        // Als het een 404 is, betekent het gewoon dat de gebruiker niet bestaat
+        if (nameErr?.message?.includes('404') || nameErr?.message?.includes('niet gevonden')) {
+          return [];
+        }
+        throw nameErr;
       }
+    } else if (nameParts.length === 1) {
+      // Één woord - geef duidelijke instructie
+      throw new Error('Voer een volledige naam in (voornaam én achternaam), bijvoorbeeld: "Jan Jansen"');
+    } else if (nameParts.length > 2) {
+      // Meer dan twee woorden - probeer eerste + laatste
+      const firstName = nameParts[0];
+      const lastName = nameParts[nameParts.length - 1];
+      console.log('[searchUsers] Multiple words detected, trying first + last:', firstName, lastName);
       
-      console.log('[searchUsers] Got', allUsers.length, 'users, filtering...');
-      
-      // Filter client-side op first_name, last_name, email, job_function, sector
-      const filtered = allUsers.filter((user: UserModel) => {
-        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
-        const firstName = (user.first_name || '').toLowerCase();
-        const lastName = (user.last_name || '').toLowerCase();
-        const email = (user.email || '').toLowerCase();
-        const jobFunction = (user.job_function || '').toLowerCase();
-        const sector = (user.sector || '').toLowerCase();
-        
-        return fullName.includes(searchTerm) || 
-               firstName.includes(searchTerm) || 
-               lastName.includes(searchTerm) ||
-               email.includes(searchTerm) ||
-               jobFunction.includes(searchTerm) ||
-               sector.includes(searchTerm);
-      });
-      
-      console.log('[searchUsers] Filtered to', filtered.length, 'matching users');
-      return filtered;
+      try {
+        const user = await getUserByName(firstName, lastName);
+        if (user) {
+          return [user];
+        } else {
+          return [];
+        }
+      } catch (nameErr: any) {
+        console.error('[searchUsers] Name search failed:', nameErr?.message);
+        if (nameErr?.message?.includes('404') || nameErr?.message?.includes('niet gevonden')) {
+          return [];
+        }
+        throw nameErr;
+      }
+    } else {
+      throw new Error('Voer een naam in om te zoeken');
     }
-    
-    // Check voor 503 errors
-    if (listRes.status === 503) {
-      throw new Error('De gebruikersservice is tijdelijk overbelast. Probeer het over een paar minuten opnieuw.');
-    }
-    
-    // Als list endpoint ook niet werkt
-    const listError = await parseErrorMessage(listRes);
-    console.error('[searchUsers] List endpoint also failed:', listRes.status, listError);
-    
-    if (listRes.status >= 500) {
-      throw new Error('De server heeft problemen. Probeer het later opnieuw.');
-    }
-    
-    throw new Error(`Kon gebruikers niet ophalen (status ${listRes.status})`);
-    
   } catch (err: any) {
-    console.error('[searchUsers] All strategies failed:', err);
-    // Geef specifieke foutmelding voor 503
-    if (err?.message?.includes('503') || err?.message?.includes('overbelast') || err?.message?.includes('niet beschikbaar')) {
-      throw err;
-    }
-    throw new Error(err?.message || 'Zoeken mislukt. De server is mogelijk tijdelijk niet bereikbaar.');
+    console.error('[searchUsers] Search failed:', err);
+    throw err;
   }
 }
 
