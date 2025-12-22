@@ -226,12 +226,33 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   const showPlaceholder = !videoSource || playerStatus === 'error';
 
   if (showPlaceholder) {
+    // Determine message based on what data we have
+    let message = 'Video wordt verwerkt…';
+    let subMessage = 'Dit kan enkele minuten duren';
+    
+    if (playerStatus === 'error') {
+      message = 'Video kan niet worden afgespeeld';
+      subMessage = 'Probeer later opnieuw';
+    } else if (!item.muxAssetId && !item.signedUrl) {
+      message = 'Video wordt verwerkt door Mux';
+      subMessage = 'Je video wordt geanalyseerd en geoptimaliseerd';
+    } else if (item.muxAssetId && !item.signedUrl) {
+      message = 'Video bijna klaar';
+      subMessage = 'Afspeelbare versie wordt gegenereerd';
+    }
+    
     return (
       <View style={[styles.container, { height: boundedHeight, maxHeight: boundedHeight }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>
-            {playerStatus === 'error' ? 'Video kan niet worden afgespeeld' : 'Video wordt verwerkt…'}
+          <Text style={styles.errorText}>{message}</Text>
+          <Text style={[styles.errorText, { fontSize: 14, marginTop: 8, opacity: 0.7 }]}>
+            {subMessage}
           </Text>
+          {item.title && (
+            <Text style={[styles.errorText, { fontSize: 16, marginTop: 16, fontWeight: '600' }]}>
+              {item.title}
+            </Text>
+          )}
         </View>
       </View>
     );

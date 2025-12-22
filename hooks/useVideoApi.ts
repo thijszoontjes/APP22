@@ -245,21 +245,29 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
   const fallbackToAllVideos = async (): Promise<FeedResponse | null> => {
     try {
+      console.log('[VideoAPI] Attempting fallback to /videos endpoint');
       const listRes = await videoRequestWithAuth("/videos", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
 
       if (!listRes.ok) {
+        console.log(`[VideoAPI] Fallback /videos failed: ${listRes.status}`);
         return null;
       }
 
       const listData = await listRes.json();
+      console.log(`[VideoAPI] Fallback /videos returned ${listData?.items?.length || 0} items`);
       const normalized = toFeedResponse(listData);
+      
+      // Enrich with signed URLs but keep all videos even if they're still processing
       await enrichItemsWithSignedUrls(normalized.items);
       attachLocalUris(normalized.items);
+      
+      console.log(`[VideoAPI] Fallback complete: ${normalized.items.length} videos available`);
       return normalized;
-    } catch {
+    } catch (err: any) {
+      console.log(`[VideoAPI] Fallback /videos exception: ${err?.message}`);
       return null;
     }
   };
@@ -293,24 +301,42 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     }
 
     const data = await res.json();
+    console.log(`[VideoAPI] Feed response received with ${data?.items?.length || 0} items`);
     const normalized = toFeedResponse(data);
+    
+    // Attach local URIs first (for newly uploaded videos)
     attachLocalUris(normalized.items);
+    console.log(`[VideoAPI] Local URIs attached. Items with local URI: ${normalized.items.filter(i => i.localUri).length}`);
 
     // `/feed` is gepersonaliseerd en kan leeg zijn als de recommendation-service (nog) niks teruggeeft
     // of als de upload nog wordt verwerkt. Val dan terug op `/videos` (algemene lijst).
     if (!normalized.items.length) {
+      console.log('[VideoAPI] Feed is empty, trying fallback to /videos');
       const fallback = await fallbackToAllVideos();
       if (fallback && fallback.items.length) {
         console.log(`[VideoAPI] Feed leeg; fallback ${fallback.items.length} video's geladen (/videos)`);
         return fallback;
       }
-      console.log('[VideoAPI] Feed leeg en /videos ook leeg');
+      console.log('[VideoAPI] Feed leeg en /videos ook leeg - geen video\'s beschikbaar');
       return normalized;
     }
 
+    // Enrich with signed URLs - but keep all videos even if enrichment fails
     await enrichItemsWithSignedUrls(normalized.items);
-    attachLocalUris(normalized.items);
-    console.log(`[VideoAPI] ${normalized.items.length} video's geladen (/feed)`);
+    
+    // Count videos by status
+    const withSignedUrl = normalized.items.filter(i => i.signedUrl).length;
+    const withStream = normalized.items.filter(i => i.stream?.length).length;
+    const withLocalUri = normalized.items.filter(i => i.localUri).length;
+    const withNoUrl = normalized.items.filter(i => !getPlayableVideoUrl(i)).length;
+    
+    console.log(`[VideoAPI] ✓ Feed ready:`);
+    console.log(`[VideoAPI]   - Total videos: ${normalized.items.length}`);
+    console.log(`[VideoAPI]   - With signed URL: ${withSignedUrl}`);
+    console.log(`[VideoAPI]   - With stream URLs: ${withStream}`);
+    console.log(`[VideoAPI]   - With local URI: ${withLocalUri}`);
+    console.log(`[VideoAPI]   - Processing (no URL): ${withNoUrl}`);
+    
     return normalized;
   } catch (err: any) {
     // Als het een netwerk error is, geef specifieke melding
@@ -418,8 +444,10 @@ export async function getSignedPlaybackUrl(
     // Vaak betekent dit: video bestaat wel, maar Mux asset/playback is nog niet ready.
     // Cache dit kort zodat we niet blijven spammen met signed-url requests.
     if (res.status === 404) {
+      console.log(`[VideoAPI] Video ${videoId} signed URL not found (404) - likely still processing`);
       signedUrlNegativeCache.set(String(videoId), Date.now() + 30_000);
     } else if (res.status === 503) {
+      console.log(`[VideoAPI] Video ${videoId} signed URL service unavailable (503)`);
       signedUrlNegativeCache.set(String(videoId), Date.now() + 10_000);
     }
 
@@ -441,6 +469,7 @@ export async function getSignedPlaybackUrl(
   const expiresIn = Number(data?.expires_in ?? data?.expiresIn ?? expirationSeconds);
   const expiresAtMs = Date.now() + Math.max(30, expiresIn - 30) * 1000;
   signedUrlCache.set(String(videoId), { url, expiresAtMs });
+  console.log(`[VideoAPI] ✓ Video ${videoId} signed URL cached (expires in ${expiresIn}s)`);
   return url;
 }
 
@@ -459,8 +488,12 @@ const enrichItemsWithSignedUrls = async (items: FeedItem[], concurrency: number 
     .filter((item) => !item.signedUrl)
     .filter((item) => !getPlayableVideoUrl(item)); // only if we have no usable url
 
-  if (!queue.length) return items;
+  if (!queue.length) {
+    console.log('[VideoAPI] All videos already have playable URLs, skipping enrichment');
+    return items;
+  }
 
+  console.log(`[VideoAPI] Enriching ${queue.length} videos with signed URLs (concurrency: ${concurrency})`);
   let index = 0;
   const runWorker = async () => {
     while (index < queue.length) {
@@ -468,13 +501,17 @@ const enrichItemsWithSignedUrls = async (items: FeedItem[], concurrency: number 
       try {
         const playableUrl = await getPlayableUrlForVideoId(current.id);
         current.signedUrl = playableUrl;
-      } catch {
-        // Ignore per-item failures (video might still be processing)
+        console.log(`[VideoAPI] ✓ Video ${current.id} enriched with signed URL`);
+      } catch (err: any) {
+        // Video is still processing - don't filter it out, just log
+        console.log(`[VideoAPI] ⚠ Video ${current.id} not ready yet: ${err?.message || 'processing'}`);
+        // Keep the video in the feed so it shows as "processing" instead of disappearing
       }
     }
   };
 
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, runWorker));
+  console.log(`[VideoAPI] Enrichment complete. Total videos in feed: ${items.length}`);
   return items;
 };
 
