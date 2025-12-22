@@ -163,43 +163,47 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {!loading && results.map(result => (
-          <View key={result.id} style={styles.listItemWrap}>
-            <View style={styles.listItem}>
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitials}>
-                  {(result.first_name?.[0] || '').toUpperCase()}{(result.last_name?.[0] || '').toUpperCase()}
-                </Text>
+        {!loading &&
+          results.map((result, index) => {
+            const key =
+              result.id != null ? `user-${result.id}` : result.email ? `email-${result.email}` : `result-${index}`;
+            return (
+              <View key={key} style={styles.listItemWrap}>
+                <View style={styles.listItem}>
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarInitials}>
+                      {(result.first_name?.[0] || '').toUpperCase()}
+                      {(result.last_name?.[0] || '').toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.listTextBlock}>
+                    <Text style={styles.listName}>
+                      {result.first_name} {result.last_name}
+                    </Text>
+                    {result.job_function && <Text style={styles.listRole}>{result.job_function}</Text>}
+                    {result.sector && (
+                      <Text style={styles.listCompany} numberOfLines={1}>
+                        {result.sector}
+                      </Text>
+                    )}
+                    {result.country && (
+                      <Text style={styles.listCompany} numberOfLines={1}>
+                        {result.country}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.profileButton}
+                    onPress={() => handleProfilePress(result)}
+                  >
+                    <Text style={styles.profileButtonText}>Open profiel</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.divider} />
               </View>
-              <View style={styles.listTextBlock}>
-                <Text style={styles.listName}>
-                  {result.first_name} {result.last_name}
-                </Text>
-                {result.job_function && (
-                  <Text style={styles.listRole}>{result.job_function}</Text>
-                )}
-                {result.sector && (
-                  <Text style={styles.listCompany} numberOfLines={1}>
-                    {result.sector}
-                  </Text>
-                )}
-                {result.country && (
-                  <Text style={styles.listCompany} numberOfLines={1}>
-                    {result.country}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity 
-                activeOpacity={0.9} 
-                style={styles.profileButton}
-                onPress={() => handleProfilePress(result)}
-              >
-                <Text style={styles.profileButtonText}>Open profiel</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.divider} />
-          </View>
-        ))}
+            );
+          })}
       </ScrollView>
     </View>
   );
