@@ -135,6 +135,7 @@ export default function DMChatPage() {
     }
     setError('');
     setLoading(true);
+    persistRecentContact(targetEmail, contactName || targetEmail);
     try {
       console.log('[DM] Ophalen gesprek met:', targetEmail);
       if (!contactName) {

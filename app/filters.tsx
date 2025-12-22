@@ -10,6 +10,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
+const DEFAULT_DISTANCE = 25;
+const DEFAULT_CATEGORIES: string[] = [];
+const LEGACY_DEFAULT_DISTANCE = 50;
+const LEGACY_DEFAULT_CATEGORIES = new Set(['technology', 'marketing', 'media']);
 
 const CATEGORY_OPTIONS = [
   { key: 'technology', label: 'Technologie' },
@@ -34,8 +38,8 @@ const FILTER_CACHE_KEY = 'user_filters_cache_v1';
 export default function FiltersPage() {
   const router = useRouter();
   const navigation = useNavigation();
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [sliderValue, setSliderValue] = useState(25);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [sliderValue, setSliderValue] = useState(DEFAULT_DISTANCE);
   const [locationStatus, setLocationStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [locationWarning, setLocationWarning] = useState('');
   const [trackWidth, setTrackWidth] = useState(280); // start with a reasonable width for initial layout
@@ -159,15 +163,23 @@ export default function FiltersPage() {
     setLoadingFilters(true);
     setErrorMessage('');
     try {
+      const cached = !cachedLoaded ? await readCachedFilters() : null;
+      const hasCachedCategories = Boolean(cached?.categories?.length);
+      const hasCachedDistance = Number.isFinite(cached?.distance as number);
+      let nextCategories = hasCachedCategories ? cached!.categories : DEFAULT_CATEGORIES;
+      let nextDistance = hasCachedDistance
+        ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached!.distance as number)))
+        : DEFAULT_DISTANCE;
+
       // Load interests
       const data = await getUserInterests();
       const activeCategories = collectCategoriesFromApi(data);
-      if (activeCategories.length) {
-        setSelectedCategories(activeCategories);
-      } else if (!cachedLoaded) {
-        const cached = await readCachedFilters();
-        if (cached?.categories?.length) {
-          setSelectedCategories(cached.categories);
+      if (!hasCachedCategories && activeCategories.length) {
+        const isLegacyDefault =
+          activeCategories.length === LEGACY_DEFAULT_CATEGORIES.size &&
+          activeCategories.every((cat) => LEGACY_DEFAULT_CATEGORIES.has(cat));
+        if (!isLegacyDefault) {
+          nextCategories = activeCategories;
         }
       }
       
@@ -176,30 +188,35 @@ export default function FiltersPage() {
         const discoveryPrefs = await getDiscoveryPreferences();
         if (discoveryPrefs?.radius_km && Number.isFinite(discoveryPrefs.radius_km)) {
           const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(discoveryPrefs.radius_km)));
-          setSliderValue(clamped);
+          if (!hasCachedDistance && clamped !== LEGACY_DEFAULT_DISTANCE) {
+            nextDistance = clamped;
+          }
         }
       } catch (discoveryErr: any) {
         console.log('[FiltersPage] Could not load discovery preferences:', discoveryErr?.message);
         // Fall back to cached value if API fails
-        if (!cachedLoaded) {
-          const cached = await readCachedFilters();
-          if (Number.isFinite(cached?.distance as number)) {
-            const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
-            setSliderValue(clamped);
-          }
-        }
+        // keep defaults or cached values
       }
       
+      setSelectedCategories(nextCategories);
+      setSliderValue(nextDistance);
+      if (!hasCachedCategories || !hasCachedDistance) {
+        await writeCachedFilters(nextCategories, nextDistance);
+      }
       setCachedLoaded(true);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Kon filters niet laden');
       const cached = await readCachedFilters();
       if (cached?.categories?.length) {
         setSelectedCategories(cached.categories);
+      } else {
+        setSelectedCategories(DEFAULT_CATEGORIES);
       }
       if (Number.isFinite(cached?.distance as number)) {
         const clamped = Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, Math.round(cached?.distance as number)));
         setSliderValue(clamped);
+      } else {
+        setSliderValue(DEFAULT_DISTANCE);
       }
     } finally {
       setLoadingFilters(false);

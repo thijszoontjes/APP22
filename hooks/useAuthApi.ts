@@ -95,6 +95,8 @@ export interface NotificationResponse {
   error?: string;
 }
 
+const NOTIFICATION_SERVICE_TOKEN = process.env.EXPO_PUBLIC_NOTIFICATION_SERVICE_TOKEN;
+
 let searchEndpointMissingLogged = false;
 const logMissingSearchEndpointOnce = () => {
   if (!searchEndpointMissingLogged) {
@@ -1019,20 +1021,26 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
   };
 
   console.log("[NotificationAPI] Verstuur notificatie:", JSON.stringify(requestBody));
+  if (!NOTIFICATION_SERVICE_TOKEN) {
+    console.warn("[NotificationAPI] Geen service token gevonden (EXPO_PUBLIC_NOTIFICATION_SERVICE_TOKEN).");
+  }
 
   try {
     const res = await requestWithFallback(
       ["/notify"],
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(NOTIFICATION_SERVICE_TOKEN ? { Authorization: `Bearer ${NOTIFICATION_SERVICE_TOKEN}` } : {}),
+        },
         body: JSON.stringify(requestBody),
       },
       NOTIFICATION_BASE_URLS,
     );
 
     const text = await res.text();
-    console.log("[NotificationAPI] Response", res.status, text || "<leeg>");
+    console.log("[NotificationAPI] Response", res.status, res.url || "<url-onbekend>", text || "<leeg>");
 
     const parseJsonSafe = () => {
       try {
@@ -1043,14 +1051,18 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
     };
 
     if (!res.ok) {
-      const parsed = parseJsonSafe();
+    const parsed = parseJsonSafe();
+    if (parsed?.status) {
+      const channels = Array.isArray(parsed.channels) ? parsed.channels.join(", ") : "";
+      console.log(`[NotificationAPI] Status: ${parsed.status}${channels ? ` (channels: ${channels})` : ""}`);
+    }
       const messageFromBody = typeof parsed === "string"
         ? parsed
         : parsed?.error || parsed?.message || text || `Notificatie versturen mislukt (status ${res.status})`;
       throw new Error(messageFromBody);
     }
 
-    return parseJsonSafe() || { status: "unknown", message: text || "Lege respons" };
+    return parsed || { status: "unknown", message: text || "Lege respons" };
   } catch (err: any) {
     console.warn("[NotificationAPI] Notificatie call faalde:", err?.message || err);
     throw new Error(normalizeNetworkError(err));
