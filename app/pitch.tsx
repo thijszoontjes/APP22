@@ -114,9 +114,13 @@ export default function PitchRecorder() {
       const result = await cameraRef.current.recordAsync({
         maxDuration: COUNTDOWN_START,
         mute: false,
+        videoCodec: 'h264',
+        videoBitrate: 500000,
+        audioCodec: 'aac',
+        audioBitrate: 32000,
       });
       if (result?.uri) {
-        addPitch(result.uri);
+        await addPitch(result.uri);
         router.replace({ pathname: '/pitch-preview', params: { uri: result.uri, facing } });
       }
     } catch (err) {

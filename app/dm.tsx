@@ -1,11 +1,14 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import AppHeader from '@/components/app-header';
+import { fetchConversation, getUserById, sendChatMessage, sendNotification, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,9 +20,10 @@ import {
 const ORANGE = '#FF8700';
 const LIGHT_ORANGE = '#FCDCBE';
 const SOFT_GRAY = '#E7E7E7';
+const LAST_CHATS_KEY = 'last_chats_v1';
 
 type ChatMessage = {
-  id: string;
+  id: string | number;
   text: string;
   from: 'me' | 'them';
   createdAt: Date;
@@ -28,9 +32,20 @@ type ChatMessage = {
 export default function DMChatPage() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { userName = 'Maarten Kuip' } = useLocalSearchParams();
+  const { userName = 'Maarten Kuip', userId: userIdParam, userEmail } = useLocalSearchParams<{ userName?: string; userId?: string; userEmail?: string | string[] }>();
+  const userId = useMemo(() => {
+    if (Array.isArray(userIdParam)) return userIdParam[0] || '';
+    return userIdParam || '';
+  }, [userIdParam]);
+  const initialEmail = useMemo(() => Array.isArray(userEmail) ? userEmail[0] : userEmail, [userEmail]);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [contactEmail, setContactEmail] = useState<string | null>(initialEmail || null);
+  const [contactName, setContactName] = useState<string | undefined>(userName);
   const scrollRef = useRef<ScrollView>(null);
 
   const dayLabel = useMemo(() => {
@@ -47,31 +62,160 @@ export default function DMChatPage() {
     scrollToBottom(true);
   }, [messages.length]);
 
+  useEffect(() => {
+    loadConversation();
+  }, [contactEmail, initialEmail]);
+
+  useEffect(() => {
+    if (!userId) {
+      setContactEmail(contactEmail || null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadContact = async () => {
+      try {
+        const profile = await getUserById(userId);
+        if (cancelled) return;
+        if (profile.email) {
+          console.log('[DM] Ontvanger e-mail geladen via profiel:', profile.email);
+          setContactEmail(profile.email);
+        }
+        const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+        if (profileName) {
+          setContactName(profileName);
+        } else if (!contactName && profile.email) {
+          setContactName(profile.email);
+        }
+      } catch (err: any) {
+        console.log('[DM] Kon ontvanger niet laden voor notificaties:', err?.message || err);
+        setContactEmail(contactEmail || null);
+      }
+    };
+
+    // Alleen ophalen als we nog geen e-mail hebben
+    if (!contactEmail) {
+      loadContact();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contactEmail, userId]);
+
   const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollToEnd({ animated });
     });
   };
 
-  const handleSend = () => {
+  const persistRecentContact = useCallback(async (email: string, name?: string) => {
+    const trimmedEmail = (email || '').trim();
+    if (!trimmedEmail) return;
+    try {
+      const raw = await SecureStore.getItemAsync(LAST_CHATS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(parsed) ? parsed : [];
+      const filtered = list.filter((item: any) => item?.email !== trimmedEmail);
+      const next = [{ email: trimmedEmail, userId, name: name || trimmedEmail }, ...filtered].slice(0, 10);
+      await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.log('[DM] Kon recente chat niet opslaan:', err);
+    }
+  }, [userId]);
+
+  const loadConversation = async () => {
+    const targetEmail = (contactEmail || initialEmail || '').trim();
+    if (!targetEmail) {
+      console.warn('[DM] Geen e-mailadres beschikbaar voor deze chat.');
+      setError('Geen geldig e-mailadres meegegeven voor deze chat.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    setError('');
+    setLoading(true);
+    persistRecentContact(targetEmail, contactName || targetEmail);
+    try {
+      console.log('[DM] Ophalen gesprek met:', targetEmail);
+      if (!contactName) {
+        setContactName(targetEmail);
+      }
+      const res = await fetchConversation(targetEmail);
+      const list = Array.isArray(res) ? res : [];
+      const parsed = list
+        .map((msg: ApiChatMessage) => mapToUiMessage(msg, targetEmail))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      if (parsed.length) {
+        persistRecentContact(targetEmail, contactName || targetEmail);
+      }
+      setMessages(parsed);
+    } catch (err: any) {
+      setError(err?.message || 'Kon gesprek niet laden.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const triggerNotification = useCallback((messageText: string) => {
+    if (!contactEmail) {
+      console.log('[DM] Sla notificatie over: geen e-mail voor ontvanger beschikbaar.');
+      return;
+    }
+
+    const title = `Nieuw bericht van ${contactName || 'een gebruiker'}`;
+    const payload = {
+      email: contactEmail,
+      type: 'chat_message',
+      title,
+      message: messageText,
+    };
+
+    sendNotification(payload)
+      .then((res) => {
+        console.log('[DM] Notificatie verstuurd:', res);
+      })
+      .catch((notifyErr) => {
+        console.warn('[DM] Notificatie versturen mislukt:', notifyErr?.message || notifyErr);
+      });
+  }, [contactEmail, contactName]);
+
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+    const targetEmail = (contactEmail || initialEmail || '').trim();
+    if (!targetEmail) {
+      setError('Geen ontvanger-e-mailadres beschikbaar.');
+      return;
+    }
+    setSending(true);
     const now = new Date();
-    const msg: ChatMessage = {
-      id: `${Date.now()}`,
-      text: trimmed,
-      from: 'me',
-      createdAt: now,
-    };
-    setMessages((prev) => [...prev, msg]);
-    setInput('');
-    scrollToBottom(true);
+    try {
+      console.log('[DM] Verstuur bericht naar:', targetEmail);
+      const sent = await sendChatMessage({ receiver_email: targetEmail, content: trimmed });
+      const uiMessage: ChatMessage = mapToUiMessage(sent, targetEmail, 'me') || {
+        id: sent?.id || `${Date.now()}`,
+        text: trimmed,
+        from: 'me',
+        createdAt: now,
+      };
+      setMessages((prev) => [...prev, uiMessage]);
+      persistRecentContact(targetEmail, contactName || targetEmail);
+      setInput('');
+      scrollToBottom(true);
+      triggerNotification(trimmed);
+    } catch (err: any) {
+      setError(err?.message || 'Versturen mislukt.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <AppHeader
-        title={userName}
+        title={contactName || contactEmail || 'Onbekende contact'}
         leading={
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
             <ArrowBackSvg width={24} height={24} />
@@ -90,7 +234,22 @@ export default function DMChatPage() {
           alwaysBounceVertical={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadConversation(); }} />}
         >
+          {error ? (
+            <View style={styles.errorWrap}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadConversation} disabled={loading}>
+                <Text style={styles.retryText}>{loading ? 'Laden...' : 'Opnieuw proberen'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} />
+              <Text style={styles.loadingText}>Berichten ophalen...</Text>
+            </View>
+          ) : null}
           {dayLabel ? (
             <View style={styles.dayChip}>
               <Text style={styles.dayChipText}>{dayLabel}</Text>
@@ -121,7 +280,7 @@ export default function DMChatPage() {
               placeholderTextColor="#B4B4B4"
               multiline
             />
-            <TouchableOpacity activeOpacity={0.85} style={styles.sendButton} onPress={handleSend}>
+            <TouchableOpacity activeOpacity={0.85} style={[styles.sendButton, sending && { opacity: 0.7 }]} onPress={handleSend} disabled={sending}>
               <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} />
             </TouchableOpacity>
           </View>
@@ -146,6 +305,19 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
+function mapToUiMessage(apiMessage: ApiChatMessage, partnerEmail: string, forceFrom?: 'me' | 'them'): ChatMessage {
+  const normalizedPartner = (partnerEmail || '').toLowerCase();
+  const senderEmail = (apiMessage?.sender_email || '').toLowerCase();
+  const created = new Date(apiMessage?.created_at || Date.now());
+  const from: 'me' | 'them' = forceFrom || (normalizedPartner && senderEmail === normalizedPartner ? 'them' : 'me');
+  return {
+    id: apiMessage.id,
+    text: apiMessage.content || '',
+    from,
+    createdAt: Number.isNaN(created.getTime()) ? new Date() : created,
+  };
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -166,6 +338,38 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 12,
     paddingTop: 12,
+  },
+  errorWrap: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    color: '#c1121f',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  retryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: ORANGE,
+    borderRadius: 12,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  loadingWrap: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 6,
+  },
+  loadingText: {
+    color: '#1A2233',
+    fontSize: 14,
+    fontWeight: '600',
   },
   dayChip: {
     alignSelf: 'center',
