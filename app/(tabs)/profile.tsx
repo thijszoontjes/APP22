@@ -1,6 +1,5 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
-import { getPitches, subscribe } from '@/constants/pitch-store';
 import { ensureValidSession, getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useRouter } from 'expo-router';
@@ -80,7 +79,6 @@ export default function ProfilePage() {
     { key: 'second', title: tabLabels[1] },
     { key: 'third', title: tabLabels[2] },
   ]);
-  const [pitches, setPitches] = useState(getPitches());
   const [apiVideos, setApiVideos] = useState<FeedItem[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
   const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
@@ -90,13 +88,6 @@ export default function ProfilePage() {
 
   // Separate player for modal - only created when video is selected
   const modalPlayer = useVideoPlayer(selectedVideoUri || '');
-
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setPitches(getPitches());
-    });
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -149,7 +140,7 @@ export default function ProfilePage() {
     loadVideos();
   }, []);
 
-  const totalVideos = apiVideos.length + pitches.length;
+  const totalVideos = apiVideos.length;
 
   const handleScroll = useCallback((event: any) => {
     const offsetY = event.nativeEvent.contentOffset.y;
@@ -196,29 +187,18 @@ export default function ProfilePage() {
         onScroll={handleScroll}
         scrollEventThrottle={200}>
         <View style={styles.videosGrid}>
-          {/* Toon API videos (van backend/Mux) */}
-          {apiVideos.map((video, i) => (
-            (() => {
-              const uri = getPlayableVideoUrl(video) || video.localUri || '';
-              return (
-            <VideoThumbnail 
-              key={`api-${video.id}`}
-              uri={uri}
-              onPress={() => setSelectedVideoUri(uri)}
-              isVisible={visibleIndices.has(i)}
-            />
-              );
-            })()
-          ))}
-          {/* Toon lokale pitches */}
-          {pitches.map((pitch, i) => (
-            <VideoThumbnail 
-              key={`local-${i}`}
-              uri={pitch.uri}
-              onPress={() => setSelectedVideoUri(pitch.uri)}
-              isVisible={visibleIndices.has(apiVideos.length + i)}
-            />
-          ))}
+          {/* Toon alleen API videos (van backend/Mux) - geen lokale cache */}
+          {apiVideos.map((video, i) => {
+            const uri = getPlayableVideoUrl(video) || '';
+            return (
+              <VideoThumbnail 
+                key={`api-${video.id}`}
+                uri={uri}
+                onPress={() => setSelectedVideoUri(uri)}
+                isVisible={visibleIndices.has(i)}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     );

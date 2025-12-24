@@ -5,14 +5,14 @@ import VideoFeedItem from '@/components/video-feed-item';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewToken,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    ViewToken,
 } from 'react-native';
 
 import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
@@ -228,7 +228,11 @@ export default function HomePage() {
             ListEmptyComponent={
               <View style={styles.emptyFeed}>
                 <Text style={styles.emptyFeedText}>
-                  Geen afspeelbare video’s gevonden. Video’s kunnen nog worden verwerkt.
+                  Momenteel geen video's beschikbaar.
+                </Text>
+                <Text style={[styles.emptyFeedText, { fontSize: 14, marginTop: 8, opacity: 0.8 }]}>
+                  Nieuwe video's kunnen enkele minuten duren om te verwerken.
+                  Trek omlaag om te verversen.
                 </Text>
                 <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed}>
                   <Text style={styles.retryButtonText}>Opnieuw laden</Text>
