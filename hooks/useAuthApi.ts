@@ -95,7 +95,20 @@ export interface NotificationResponse {
   error?: string;
 }
 
+export interface NotificationSettingsInput {
+  chat_email?: boolean;
+  chat_push?: boolean;
+  expo_push_token?: string;
+  follow_email?: boolean;
+  follow_push?: boolean;
+  like_email?: boolean;
+  like_push?: boolean;
+  system_email?: boolean;
+  system_push?: boolean;
+}
+
 const NOTIFICATION_SERVICE_TOKEN = process.env.EXPO_PUBLIC_NOTIFICATION_SERVICE_TOKEN;
+const USER_SERVICE_TOKEN = process.env.EXPO_PUBLIC_USER_SERVICE_TOKEN;
 
 let searchEndpointMissingLogged = false;
 const logMissingSearchEndpointOnce = () => {
@@ -173,6 +186,72 @@ const normalizeTokenResponse = (data: any): TokenResponse => {
     token_type: data.token_type || data.tokenType || "Bearer",
   };
 };
+
+const logNotificationPreferences = async (email: string) => {
+  const trimmedEmail = (email || "").trim();
+  if (!trimmedEmail) return;
+  const serviceToken = (USER_SERVICE_TOKEN || "").trim();
+  if (!serviceToken) {
+    return;
+  }
+  const endpoint = `/internal/users/${encodeURIComponent(trimmedEmail)}/notification-preferences`;
+  try {
+    const res = await requestWithFallback(
+      [endpoint],
+      {
+        method: "GET",
+        headers: {
+          "X-Service-Token": serviceToken,
+        },
+      },
+      BASE_URLS,
+    );
+    const text = await res.text();
+    console.log("[NotificationAPI] Prefs response", res.status, res.url || "<url-onbekend>", text || "<leeg>");
+    if (!res.ok) return;
+    try {
+      const parsed = text ? JSON.parse(text) : null;
+      console.log("[NotificationAPI] Prefs parsed", parsed ?? "<leeg>");
+    } catch {
+      // Laat raw text log staan als JSON parsing faalt.
+    }
+  } catch (err: any) {
+    console.warn("[NotificationAPI] Prefs ophalen mislukt:", err?.message || err);
+  }
+};
+
+export async function updateNotificationPreferences(payload: NotificationSettingsInput): Promise<Record<string, any>> {
+  const body = Object.entries(payload || {}).reduce<Record<string, any>>((acc, [key, value]) => {
+    if (value === undefined) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+
+  if (!Object.keys(body).length) {
+    throw new Error("Geen notificatie-voorkeuren meegegeven.");
+  }
+
+  try {
+    const res = await withAutoRefresh(
+      ["/users/me/notification-preferences"],
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      BASE_URLS,
+    );
+
+    const text = await res.text();
+    console.log("[NotificationAPI] Prefs update", res.status, res.url || "<url-onbekend>", text || "<leeg>");
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res));
+    }
+    return text ? JSON.parse(text) : {};
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
 
 const extractSubFromAccessToken = async (): Promise<string | null> => {
   try {
@@ -1013,6 +1092,14 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
     throw new Error("Notificatie mist verplichte velden (email, type, message).");
   }
 
+  const notificationToken = (NOTIFICATION_SERVICE_TOKEN || "").trim();
+  const tokenInfo = (() => {
+    if (!notificationToken) return "missing";
+    const head = notificationToken.slice(0, 4);
+    const tail = notificationToken.slice(-4);
+    return `present (len=${notificationToken.length}, head=${head}, tail=${tail})`;
+  })();
+
   const requestBody = {
     email: payload.email,
     type: payload.type,
@@ -1021,8 +1108,13 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
   };
 
   console.log("[NotificationAPI] Verstuur notificatie:", JSON.stringify(requestBody));
+  console.log("[NotificationAPI] Base URLs:", NOTIFICATION_BASE_URLS.join(", "));
+  console.log("[NotificationAPI] Service token:", tokenInfo);
   if (!NOTIFICATION_SERVICE_TOKEN) {
     console.warn("[NotificationAPI] Geen service token gevonden (EXPO_PUBLIC_NOTIFICATION_SERVICE_TOKEN).");
+  }
+  if (USER_SERVICE_TOKEN) {
+    await logNotificationPreferences(payload.email);
   }
 
   try {
@@ -1032,7 +1124,12 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(NOTIFICATION_SERVICE_TOKEN ? { Authorization: `Bearer ${NOTIFICATION_SERVICE_TOKEN}` } : {}),
+          ...(notificationToken
+            ? {
+                Authorization: `Bearer ${notificationToken}`,
+                "X-Service-Token": notificationToken,
+              }
+            : {}),
         },
         body: JSON.stringify(requestBody),
       },
@@ -1050,12 +1147,17 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
       }
     };
 
-    if (!res.ok) {
     const parsed = parseJsonSafe();
     if (parsed?.status) {
       const channels = Array.isArray(parsed.channels) ? parsed.channels.join(", ") : "";
       console.log(`[NotificationAPI] Status: ${parsed.status}${channels ? ` (channels: ${channels})` : ""}`);
+      if (Array.isArray(parsed.channels)) {
+        const hasPush = parsed.channels.includes("push");
+        console.log(`[NotificationAPI] Push kanaal: ${hasPush ? "ja" : "nee"}`);
+      }
     }
+
+    if (!res.ok) {
       const messageFromBody = typeof parsed === "string"
         ? parsed
         : parsed?.error || parsed?.message || text || `Notificatie versturen mislukt (status ${res.status})`;
