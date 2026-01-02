@@ -81,6 +81,12 @@ export interface ChatMessage {
   sender_email?: string;
 }
 
+export interface ConversationItem {
+  last_at: string;
+  last_message: string;
+  with_email: string;
+}
+
 export interface NotificationRequest {
   email: string;
   type: string;
@@ -1046,6 +1052,33 @@ export async function fetchConversation(withUserEmail: string): Promise<ChatMess
     const text = await res.text();
     if (!text) return [];
     return JSON.parse(text);
+  } catch (err: any) {
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function fetchConversations(): Promise<ConversationItem[]> {
+  console.log("[ChatAPI] Haal alle conversations op");
+  try {
+    const res = await withAutoRefresh(
+      ["/chat/conversations"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+      CHAT_BASE_URLS,
+    );
+    if (!res.ok) {
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) return [];
+    const conversations = JSON.parse(text);
+    console.log("[ChatAPI] Conversations opgehaald:", conversations?.length || 0);
+    return conversations;
   } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }

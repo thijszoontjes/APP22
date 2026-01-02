@@ -48,11 +48,6 @@ export default function DMChatPage() {
   const [contactName, setContactName] = useState<string | undefined>(userName);
   const scrollRef = useRef<ScrollView>(null);
 
-  const dayLabel = useMemo(() => {
-    const first = messages[0]?.createdAt;
-    return first ? getDayLabel(first) : '';
-  }, [messages]);
-
   useEffect(() => {
     navigation.setOptions?.({ headerShown: false });
     scrollToBottom(false);
@@ -250,20 +245,25 @@ export default function DMChatPage() {
               <Text style={styles.loadingText}>Berichten ophalen...</Text>
             </View>
           ) : null}
-          {dayLabel ? (
-            <View style={styles.dayChip}>
-              <Text style={styles.dayChipText}>{dayLabel}</Text>
-            </View>
-          ) : null}
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const isMe = message.from === 'me';
+            const prevMessage = index > 0 ? messages[index - 1] : null;
+            const showDateSeparator = !prevMessage || !isSameDay(prevMessage.createdAt, message.createdAt);
+            
             return (
-              <View key={message.id} style={isMe ? styles.bubbleRowRight : styles.bubbleRowLeft}>
-                <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                  <Text style={isMe ? styles.bubbleTextRight : styles.bubbleTextLeft}>{message.text}</Text>
-                  <Text style={isMe ? styles.bubbleTimeRight : styles.bubbleTimeLeft}>{formatTime(message.createdAt)}</Text>
+              <React.Fragment key={message.id}>
+                {showDateSeparator && (
+                  <View style={styles.dayChip}>
+                    <Text style={styles.dayChipText}>{getDayLabel(message.createdAt)}</Text>
+                  </View>
+                )}
+                <View style={isMe ? styles.bubbleRowRight : styles.bubbleRowLeft}>
+                  <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                    <Text style={isMe ? styles.bubbleTextRight : styles.bubbleTextLeft}>{message.text}</Text>
+                    <Text style={isMe ? styles.bubbleTimeRight : styles.bubbleTimeLeft}>{formatTime(message.createdAt)}</Text>
+                  </View>
                 </View>
-              </View>
+              </React.Fragment>
             );
           })}
         </ScrollView>
