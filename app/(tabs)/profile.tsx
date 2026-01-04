@@ -209,9 +209,9 @@ export default function ProfilePage() {
       <AppHeader
         title="Profiel"
         actions={[
-          <View key="settings" style={styles.optionCircle}>
+          <TouchableOpacity key="settings" style={styles.optionCircle} onPress={() => router.push('/settings')}>
             <SettingIconSvg width={22} height={22} />
-          </View>,
+          </TouchableOpacity>,
         ]}
       />
       <View style={styles.profilePicContainer}>

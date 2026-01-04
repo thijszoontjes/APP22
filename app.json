@@ -64,7 +64,9 @@
           "videosPermission": "Allow $(PRODUCT_NAME) to access your videos.",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
