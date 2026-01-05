@@ -263,6 +263,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
       // Enrich with signed URLs but keep all videos even if they're still processing
       await enrichItemsWithSignedUrls(normalized.items);
       attachLocalUris(normalized.items);
+      await enrichWithDisplayName(normalized.items);
       
       console.log(`[VideoAPI] Fallback complete: ${normalized.items.length} videos available`);
       return normalized;
@@ -329,6 +330,9 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
     // Enrich with signed URLs - but keep all videos even if enrichment fails
     await enrichItemsWithSignedUrls(normalized.items);
+    
+    // Enrich with displayName from JWT token for user's own videos
+    await enrichWithDisplayName(normalized.items);
     
     // Count videos by status
     const withSignedUrl = normalized.items.filter(i => i.signedUrl).length;
@@ -529,6 +533,45 @@ const attachLocalUris = (items: FeedItem[]) => {
     if (local) {
       item.localUri = local;
     }
+  }
+};
+
+// Enrich videos with displayName from JWT token if missing
+const enrichWithDisplayName = async (items: FeedItem[]) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    if (!accessToken) return;
+
+    const tokenPayload = decodeJwtPayload(accessToken);
+    if (!tokenPayload) return;
+
+    const firstName = tokenPayload.given_name || tokenPayload.givenName || tokenPayload.first_name || '';
+    const lastName = tokenPayload.family_name || tokenPayload.familyName || tokenPayload.last_name || '';
+    const displayName = `${firstName} ${lastName}`.trim();
+    
+    if (!displayName) return;
+
+    const tokenUserId = String(tokenPayload?.sub || '').trim();
+    
+    for (const item of items) {
+      // Check if this video belongs to the current user
+      const ownerId = item?.owner?.id ? String(item.owner.id).trim() : "";
+      const userId = item?.userId != null ? String(item.userId).trim() : "";
+      const ownerIdAlt = item?.ownerId != null ? String(item.ownerId).trim() : "";
+      const isMyVideo = ownerId === tokenUserId || userId === tokenUserId || ownerIdAlt === tokenUserId;
+      
+      // If it's my video and displayName is missing, add it
+      if (isMyVideo && (!item.owner?.displayName || item.owner.displayName === 'N/A' || item.owner.displayName === 'Onbekend')) {
+        if (!item.owner) {
+          item.owner = { id: tokenUserId, displayName };
+        } else {
+          item.owner.displayName = displayName;
+        }
+        console.log(`[VideoAPI] Enriched video ${item.id} with displayName: ${displayName}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[VideoAPI] Could not enrich videos with displayName:', err);
   }
 };
 
@@ -824,6 +867,7 @@ export async function getMyVideos(): Promise<FeedResponse> {
 
     const enriched = await enrichItemsWithSignedUrls(filtered);
     attachLocalUris(enriched);
+    await enrichWithDisplayName(enriched);
 
     console.log(`[VideoAPI] ${enriched.length}/${items.length} eigen video's geladen (fallback /videos)`);
     return { items: enriched, total: enriched.length };
