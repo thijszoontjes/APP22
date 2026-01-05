@@ -222,7 +222,7 @@ export default function PitchPreview() {
       const uploadData = await createVideoUpload({
         title: 'Mijn Pitch',
         contentType,
-      });
+      }); // Backend bepaalt owner automatisch via JWT token
 
       console.log('[PitchPreview] Upload URL ontvangen:', uploadData.uploadUrl);
 
@@ -238,10 +238,20 @@ export default function PitchPreview() {
       await markPitchUploaded(videoUri, uploadData.id);
 
       console.log('[PitchPreview] Video succesvol geupload!');
+      
+      // Wacht kort zodat backend de video kan indexeren
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       Alert.alert(
         'Succes!',
         'Je pitch is succesvol geupload en wordt verwerkt.',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/profile') }]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // Force refresh by going to profile - the profile page will reload videos
+            router.replace('/(tabs)/profile');
+          }
+        }]
       );
     } catch (err: any) {
       console.error('[PitchPreview] Upload error:', err);
