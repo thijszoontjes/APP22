@@ -305,6 +305,18 @@ const refreshApi = async (refresh_token: string): Promise<TokenResponse> => {
   }
 };
 
+export async function logoutApi(): Promise<void> {
+  try {
+    // Clear local tokens immediately
+    await clearAuthToken();
+    console.log('[Auth] Gebruiker succesvol uitgelogd');
+  } catch (err: any) {
+    console.error('[Auth] Fout bij uitloggen:', err?.message);
+    // Even if there's an error, still clear tokens
+    await clearAuthToken();
+  }
+}
+
 const withAutoRefresh = async (paths: string[], options: RequestInit = {}, bases: string[] = BASE_URLS): Promise<Response> => {
   const { accessToken, refreshToken } = await getAuthTokens();
   if (!accessToken || !refreshToken) {
@@ -652,31 +664,18 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
     const data = await res.json();
     console.log('[getUserInterests] API response:', JSON.stringify(data, null, 2));
     
-    // Map IDs back to category keys
-    const ID_TO_CATEGORY_MAP: Record<number, string> = {
-      1: 'technology',
-      2: 'ict',
-      3: 'investing',
-      4: 'marketing',
-      5: 'media',
-      6: 'production',
-      7: 'education',
-    };
-    
-    // Parse the API response format
+    // Parse the API response format and return interests as array
     const result: UserInterestsInput = {};
     
-    // Handle interests array from API (format: [{id, key, value}])
+    // Handle interests array from API (format: [{id, name, value}])
     if (data.interests && Array.isArray(data.interests)) {
       const activeInterests: string[] = [];
       
       data.interests.forEach((item: any) => {
-        const categoryKey = ID_TO_CATEGORY_MAP[item.id] || item.key;
-        if (categoryKey && item.value === true) {
-          activeInterests.push(categoryKey);
-          result[categoryKey as keyof UserInterestsInput] = true;
-        } else if (categoryKey) {
-          result[categoryKey as keyof UserInterestsInput] = false;
+        // Return the raw interest value/name from the API (use name field or key)
+        if (item.value === true && (item.name || item.key)) {
+          const interestName = item.name || item.key;
+          activeInterests.push(interestName);
         }
       });
       
@@ -691,28 +690,13 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
 
 export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
   try {
-    // Map category keys to IDs (backend expects id-based format)
-    const CATEGORY_ID_MAP: Record<string, number> = {
-      'technology': 1,
-      'ict': 2,
-      'investing': 3,
-      'marketing': 4,
-      'media': 5,
-      'production': 6,
-      'education': 7,
-    };
-
-    // Collect selected categories from various sources
+    // Get the interests array from payload (interest names/strings)
     const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
-    const interestFlags = Object.entries(payload)
-      .filter(([key, value]) => typeof value === "boolean" && value === true)
-      .map(([key]) => key);
-    const mergedInterests = Array.from(new Set([...interestArray, ...interestFlags]));
 
-    // Convert to API format: array of {id, value} objects
-    const interestsForApi = Object.entries(CATEGORY_ID_MAP).map(([key, id]) => ({
-      id,
-      value: mergedInterests.includes(key),
+    // Convert to API format: array of {id, value} objects with the interest names
+    const interestsForApi = interestArray.map((interest, index) => ({
+      id: index + 1,
+      value: true,
     }));
 
     // Build the API payload according to Swagger spec
@@ -798,6 +782,37 @@ export async function getCurrentUserProfile(): Promise<UserModel> {
         throw new Error(combined);
       }
     }
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+/**
+ * Update the logged-in user's profile data
+ * PUT /users/me
+ */
+export async function updateUserProfile(payload: Partial<UserModel>): Promise<UserModel> {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Ongeldige gegevens voor profielupdate.");
+  }
+
+  try {
+    const res = await withAutoRefresh(
+      ["/api/users/me", "/users/me"],
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res));
+    }
+    const text = await res.text();
+    if (!text) {
+      throw new Error("Profiel bijgewerkt maar respons was leeg.");
+    }
+    return JSON.parse(text);
+  } catch (err: any) {
     throw new Error(normalizeNetworkError(err));
   }
 }

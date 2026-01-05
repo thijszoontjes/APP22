@@ -4,10 +4,10 @@ import MailSvg from '@/assets/images/mail-alt-3-svgrepo-com.svg';
 import NotificationSvg from '@/assets/images/notification-12-svgrepo-com.svg';
 import PhoneSvg from '@/assets/images/phone-svgrepo-com.svg';
 import AppHeader from '@/components/app-header';
-import { getCurrentUserProfile } from '@/hooks/useAuthApi';
+import { getCurrentUserProfile, getUserInterests, logoutApi, updateUserInterests, updateUserProfile } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 
@@ -30,6 +30,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const [showSectorPicker, setShowSectorPicker] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     naam: '',
     email: '',
@@ -59,6 +60,14 @@ export default function SettingsPage() {
             sector: userProfile.sector || '',
             biografie: userProfile.biography || '',
           });
+        }
+
+        // Load user interests
+        const interests = await getUserInterests();
+        console.log('[Settings] Interesses ingeladen:', interests);
+        // Map the interests from the API response to match SECTOR_OPTIONS
+        if (interests && interests.interests) {
+          setSelectedInteresses(interests.interests);
         }
       } catch (error) {
         console.error('Error loading user profile:', error);
@@ -100,10 +109,87 @@ export default function SettingsPage() {
     setShowSectorPicker(false);
   };
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Uitloggen',
+      'Weet je zeker dat je uit wilt loggen?',
+      [
+        {
+          text: 'Annuleren',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Uitloggen',
+          onPress: async () => {
+            try {
+              console.log('[Settings] Uitloggen gestart...');
+              await logoutApi();
+              console.log('[Settings] Tokens gecleared, navigeer naar login');
+              // Give it a moment for tokens to be cleared
+              setTimeout(() => {
+                router.replace('/(tabs)');
+              }, 500);
+            } catch (error) {
+              console.error('[Settings] Logout error:', error);
+              Alert.alert('Fout', 'Er is een fout opgetreden bij het uitloggen');
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const [firstName, ...lastNameParts] = formData.naam.trim().split(/\s+/);
+      const lastName = lastNameParts.join(' ');
+
+      if (!firstName) {
+        Alert.alert('Fout', 'Voer alstublieft een naam in');
+        setSaving(false);
+        return;
+      }
+
+      const updatePayload = {
+        first_name: firstName || '',
+        last_name: lastName || '',
+        email: formData.email || '',
+        phone_number: formData.telefoon || '',
+        job_function: formData.functie || '',
+        sector: formData.sector || '',
+        biography: formData.biografie || '',
+      };
+
+      console.log('[Settings] Profiel gegevens verzenden:', updatePayload);
+      const response = await updateUserProfile(updatePayload);
+      console.log('[Settings] Profiel succesvol bijgewerkt:', response);
+
+      // Update user interests
+      if (selectedInteresses.length > 0) {
+        console.log('[Settings] Interesses verzenden:', selectedInteresses);
+        const interestsPayload = {
+          interests: selectedInteresses,
+        };
+        const interestsResponse = await updateUserInterests(interestsPayload);
+        console.log('[Settings] Interesses succesvol bijgewerkt:', interestsResponse);
+      }
+
+      Alert.alert('Succes', 'Je profiel is succesvol bijgewerkt');
+    } catch (error: any) {
+      console.error('[Settings] Fout bij opslaan profiel:', error);
+      Alert.alert('Fout', error?.message || 'Er is een fout opgetreden bij het opslaan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <AppHeader 
-        title="Instellingenn"
+        title="Instellingen"
         leading={
           <TouchableOpacity style={styles.backCircle} activeOpacity={0.8} onPress={() => router.back()}>
             <ArrowBackSvg width={22} height={22} />
@@ -141,12 +227,12 @@ export default function SettingsPage() {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, styles.disabledInput]}
               placeholder="Voer je email in"
               placeholderTextColor="#999"
               keyboardType="email-address"
               value={formData.email}
-              onChangeText={(value) => handleInputChange('email', value)}
+              editable={false}
             />
           </View>
 
@@ -279,8 +365,12 @@ export default function SettingsPage() {
           </View>
 
           {/* Opslaan knop */}
-          <TouchableOpacity style={styles.saveButton} activeOpacity={0.85}>
-            <Text style={styles.saveButtonText}>Opslaan</Text>
+          <TouchableOpacity 
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+            activeOpacity={0.85}
+            onPress={handleSaveProfile}
+            disabled={saving}>
+            <Text style={styles.saveButtonText}>{saving ? 'Opslaan...' : 'Opslaan'}</Text>
           </TouchableOpacity>
 
           {/* Oranje streep */}
@@ -292,7 +382,7 @@ export default function SettingsPage() {
           </TouchableOpacity>
 
           {/* Uitloggen button */}
-          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={handleLogout}>
             <Text style={styles.logoutButtonText}>Uitloggen</Text>
           </TouchableOpacity>
 
@@ -429,6 +519,10 @@ const styles = StyleSheet.create({
     minHeight: 100,
     paddingTop: 12,
   },
+  disabledInput: {
+    backgroundColor: '#E8E8E8',
+    color: '#999',
+  },
   saveButton: {
     backgroundColor: ORANGE,
     borderRadius: 8,
@@ -442,6 +536,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   dropdownButton: {
     borderWidth: 1,
