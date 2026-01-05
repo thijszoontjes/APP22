@@ -305,6 +305,14 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     console.log(`[VideoAPI] Feed response received with ${data?.items?.length || 0} items`);
     const normalized = toFeedResponse(data);
     
+    // Debug: log categories of feed videos
+    if (normalized.items.length > 0) {
+      console.log('[VideoAPI] Feed video categories:');
+      normalized.items.forEach((item, idx) => {
+        console.log(`[VideoAPI]   ${idx + 1}. Video ${item.id}: category="${item.category || 'GEEN CATEGORY'}", title="${item.title}"`);
+      });
+    }
+    
     // Attach local URIs first (for newly uploaded videos)
     attachLocalUris(normalized.items);
     console.log(`[VideoAPI] Local URIs attached. Items with local URI: ${normalized.items.filter(i => i.localUri).length}`);
@@ -830,7 +838,7 @@ export async function getMyVideos(): Promise<FeedResponse> {
 
     console.log(`[VideoAPI] /videos returned ${items.length} total videos`);
     items.forEach((item, idx) => {
-      console.log(`[VideoAPI]   Video ${idx + 1}: ID=${item.id}, title="${item.title}", owner=${item.owner?.displayName || 'N/A'}, userId=${item.userId || 'N/A'}`);
+      console.log(`[VideoAPI]   Video ${idx + 1}: ID=${item.id}, title="${item.title}", category="${item.category || 'GEEN'}", owner=${item.owner?.displayName || 'N/A'}, userId=${item.userId || 'N/A'}`);
     });
 
     const { accessToken } = await getAuthTokens();
