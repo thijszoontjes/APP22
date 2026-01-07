@@ -31,7 +31,7 @@ export function AppHeader({
       <View style={styles.contentRow}>
         <View style={styles.sideSlot}>{leading ?? <View style={styles.spacer} />}</View>
         <View style={styles.textBlock}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
             {title}
           </Text>
           {subtitle ? (

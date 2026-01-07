@@ -212,8 +212,13 @@ export default function DMChatPage() {
       <AppHeader
         title={contactName || contactEmail || 'Onbekende contact'}
         leading={
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
-            <ArrowBackSvg width={24} height={24} />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={24} height={24} accessible={false} />
           </TouchableOpacity>
         }
       />
@@ -234,14 +239,20 @@ export default function DMChatPage() {
           {error ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadConversation} disabled={loading}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={loadConversation}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Opnieuw proberen"
+              >
                 <Text style={styles.retryText}>{loading ? 'Laden...' : 'Opnieuw proberen'}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
           {loading ? (
             <View style={styles.loadingWrap}>
-              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} />
+              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} accessible={false} />
               <Text style={styles.loadingText}>Berichten ophalen...</Text>
             </View>
           ) : null}
@@ -269,7 +280,7 @@ export default function DMChatPage() {
         </ScrollView>
         <View style={styles.inputBar}>
           <View style={styles.inputContainer}>
-            <View style={styles.plusCircle}>
+            <View style={styles.plusCircle} accessible={false}>
               <Text style={styles.plusIcon}>{'+'}</Text>
             </View>
             <TextInput
@@ -279,9 +290,17 @@ export default function DMChatPage() {
               placeholder="Bericht...."
               placeholderTextColor="#B4B4B4"
               multiline
+              accessibilityLabel="Bericht"
             />
-            <TouchableOpacity activeOpacity={0.85} style={[styles.sendButton, sending && { opacity: 0.7 }]} onPress={handleSend} disabled={sending}>
-              <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.sendButton, sending && { opacity: 0.7 }]}
+              onPress={handleSend}
+              disabled={sending}
+              accessibilityRole="button"
+              accessibilityLabel="Verstuur bericht"
+            >
+              <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} accessible={false} />
             </TouchableOpacity>
           </View>
         </View>
