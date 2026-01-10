@@ -1,11 +1,11 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
-import { ensureValidSession, getCurrentUserProfile, type UserModel } from '@/hooks/useAuthApi';
+import { ensureValidSession, getCurrentUserProfile, getProfilePhotoUrl, type UserModel } from '@/hooks/useAuthApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TabBar, TabView } from 'react-native-tab-view';
 
 const tabLabels = ['Eigen video', 'Gelikete video', 'Favorieten'];
@@ -85,6 +85,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserModel | null>(null);
   const [profileError, setProfileError] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
 
   // Separate player for modal - only created when video is selected
   const modalPlayer = useVideoPlayer(selectedVideoUri || '');
@@ -121,6 +122,27 @@ export default function ProfilePage() {
     };
     loadProfile();
   }, []);
+
+  // Refresh profile when screen is focused (e.g., returning from settings)
+  useFocusEffect(
+    useCallback(() => {
+      const refreshProfile = async () => {
+        try {
+          const data = await getCurrentUserProfile();
+          setProfile(data);
+          
+          // Load profile photo URL
+          const photoUrlData = await getProfilePhotoUrl();
+          if (photoUrlData.url || photoUrlData.presigned_url) {
+            setProfilePhotoUrl(photoUrlData.url || photoUrlData.presigned_url || null);
+          }
+        } catch (err: any) {
+          console.error('[Profile] Failed to refresh profile:', err);
+        }
+      };
+      refreshProfile();
+    }, [])
+  );
 
   // Load own videos from API
   const loadVideos = useCallback(async () => {
@@ -214,13 +236,21 @@ export default function ProfilePage() {
       <AppHeader
         title="Profiel"
         actions={[
-          <View key="settings" style={styles.optionCircle}>
+          <TouchableOpacity key="settings" style={styles.optionCircle} onPress={() => router.push('/settings')}>
             <SettingIconSvg width={22} height={22} />
-          </View>,
+          </TouchableOpacity>,
         ]}
       />
       <View style={styles.profilePicContainer}>
-        <View style={styles.profilePicCircle} />
+        {profilePhotoUrl ? (
+          <Image 
+            source={{ uri: profilePhotoUrl }} 
+            style={styles.profilePicCircle}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.profilePicCircle} />
+        )}
       </View>
       <View style={styles.profileInfoContainer}>
         <Text style={styles.profileName}>
@@ -228,9 +258,11 @@ export default function ProfilePage() {
             ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
             : 'Anna Vermeer'}
         </Text>
-        <Text style={styles.profileDetails}>
-          {profile?.phone_number || '+31 465436443'}
-        </Text>
+        {profile?.phone_number_visible && (
+          <Text style={styles.profileDetails}>
+            {profile?.phone_number || '+31 465436443'}
+          </Text>
+        )}
         <Text style={styles.profileDetails}>
           {profile?.email || 'Anna01@gmail.com'}
         </Text>
