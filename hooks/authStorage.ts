@@ -7,6 +7,23 @@ const LAST_CHATS_KEY = "last_chats_v1";
 const LAST_CHATS_OWNER_KEY = "last_chats_owner_v1";
 const FILTER_CACHE_KEY = "user_filters_cache_v1";
 const FILTER_OWNER_KEY = "filter_owner_v1";
+const LIKED_VIDEOS_KEY_PREFIX = "liked_videos_v1_";
+const FAVORITED_VIDEOS_KEY_PREFIX = "favorited_videos_v1_";
+
+// Extract user_id from access token JWT
+const getUserIdFromToken = (accessToken: string | null): string | null => {
+  if (!accessToken) return null;
+  try {
+    const parts = accessToken.split('.');
+    if (parts.length === 3) {
+      const decoded = JSON.parse(atob(parts[1]));
+      return decoded.sub || decoded.user_id || decoded.id || null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 export const getStoredToken = async (): Promise<string | null> => {
   try {
@@ -53,6 +70,7 @@ export const clearAuthToken = async () => {
     await SecureStore.deleteItemAsync(LAST_CHATS_OWNER_KEY);
     await SecureStore.deleteItemAsync(FILTER_CACHE_KEY);
     await SecureStore.deleteItemAsync(FILTER_OWNER_KEY);
+    // DON'T delete LIKED_VIDEOS_KEY - we want likes to persist across logout/login
   } catch {
     // best-effort
   }
@@ -110,5 +128,121 @@ export const syncFilterOwner = async (email: string) => {
     await SecureStore.setItemAsync(FILTER_OWNER_KEY, normalized);
   } catch {
     // best-effort
+  }
+};
+
+// Liked videos management - per user
+export const getLikedVideos = async (): Promise<Set<string>> => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return new Set();
+    
+    const key = `${LIKED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = await SecureStore.getItemAsync(key);
+    if (!json) return new Set();
+    const ids = JSON.parse(json) as string[];
+    return new Set(ids);
+  } catch (err) {
+    return new Set();
+  }
+};
+
+export const addLikedVideo = async (videoId: string) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return;
+    
+    const likedVideos = await getLikedVideos();
+    likedVideos.add(String(videoId));
+    const key = `${LIKED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = JSON.stringify(Array.from(likedVideos));
+    await SecureStore.setItemAsync(key, json);
+  } catch (err) {
+    // best-effort
+  }
+};
+
+export const removeLikedVideo = async (videoId: string) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return;
+    
+    const likedVideos = await getLikedVideos();
+    likedVideos.delete(String(videoId));
+    const key = `${LIKED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = JSON.stringify(Array.from(likedVideos));
+    await SecureStore.setItemAsync(key, json);
+  } catch (err) {
+    // best-effort
+  }
+};
+
+export const isVideoLiked = async (videoId: string): Promise<boolean> => {
+  try {
+    const likedVideos = await getLikedVideos();
+    return likedVideos.has(String(videoId));
+  } catch {
+    return false;
+  }
+};
+
+// Favorited videos management - per user
+export const getFavoritedVideos = async (): Promise<Set<string>> => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return new Set();
+    
+    const key = `${FAVORITED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = await SecureStore.getItemAsync(key);
+    if (!json) return new Set();
+    const ids = JSON.parse(json) as string[];
+    return new Set(ids);
+  } catch (err) {
+    return new Set();
+  }
+};
+
+export const addFavoritedVideo = async (videoId: string) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return;
+    
+    const favoritedVideos = await getFavoritedVideos();
+    favoritedVideos.add(String(videoId));
+    const key = `${FAVORITED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = JSON.stringify(Array.from(favoritedVideos));
+    await SecureStore.setItemAsync(key, json);
+  } catch (err) {
+    // best-effort
+  }
+};
+
+export const removeFavoritedVideo = async (videoId: string) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    const userId = getUserIdFromToken(accessToken);
+    if (!userId) return;
+    
+    const favoritedVideos = await getFavoritedVideos();
+    favoritedVideos.delete(String(videoId));
+    const key = `${FAVORITED_VIDEOS_KEY_PREFIX}${userId}`;
+    const json = JSON.stringify(Array.from(favoritedVideos));
+    await SecureStore.setItemAsync(key, json);
+  } catch (err) {
+    // best-effort
+  }
+};
+
+export const isVideoFavorited = async (videoId: string): Promise<boolean> => {
+  try {
+    const favoritedVideos = await getFavoritedVideos();
+    return favoritedVideos.has(String(videoId));
+  } catch {
+    return false;
   }
 };

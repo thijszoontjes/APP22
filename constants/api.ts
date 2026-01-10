@@ -16,6 +16,10 @@ const DEFAULT_NOTIFICATION_BASE_URL = "http://localhost:8086";
 const SECONDARY_NOTIFICATION_BASE_URL = "https://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 const SECONDARY_NOTIFICATION_BASE_URL_HTTP = "http://notificationservice-notificationservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
 
+const DEFAULT_COMMUNITY_BASE_URL = "https://communityservice-communityservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_COMMUNITY_BASE_URL = "https://communityservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+const SECONDARY_COMMUNITY_BASE_URL_HTTP = "http://communityservice-projectgroup1-prod.apps.inholland-minor.openshift.eu";
+
 const normalizeUrl = (url: string) => url.trim().replace(/\/+$/, "");
 
 // Probeer eerst de env-var, daarna de bekende routes (oude + nieuwe DNS zonder dubbele service-naam).
@@ -81,3 +85,17 @@ export const NOTIFICATION_BASE_URLS = Array.from(
 );
 
 export const NOTIFICATION_BASE_URL = NOTIFICATION_BASE_URLS[0] || DEFAULT_NOTIFICATION_BASE_URL;
+export const COMMUNITY_BASE_URLS = Array.from(
+  new Set(
+    [
+      process.env.EXPO_PUBLIC_COMMUNITY_URL,
+      DEFAULT_COMMUNITY_BASE_URL,
+      SECONDARY_COMMUNITY_BASE_URL,
+      SECONDARY_COMMUNITY_BASE_URL_HTTP,
+    ]
+      .filter(isString)
+      .map((url) => normalizeUrl(url)),
+  ),
+);
+
+export const COMMUNITY_BASE_URL = COMMUNITY_BASE_URLS[0] || DEFAULT_COMMUNITY_BASE_URL;

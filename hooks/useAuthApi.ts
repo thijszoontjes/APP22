@@ -970,33 +970,49 @@ export async function getUserByName(firstName: string, lastName: string): Promis
 
   try {
     const endpoint = `/users/${encodeURIComponent(firstName.trim())}/${encodeURIComponent(lastName.trim())}`;
+    console.log('[getUserByName] Calling endpoint:', endpoint);
     
     const res = await withAutoRefresh([endpoint], {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
 
+    console.log('[getUserByName] Response status:', res.status);
+
     if (res.ok) {
       const text = await res.text();
-      if (!text) return null;
+      console.log('[getUserByName] Response text:', text);
+      
+      if (!text) {
+        console.log('[getUserByName] Empty response, returning null');
+        return null;
+      }
       
       const data = JSON.parse(text);
-      console.log('[getUserByName] Response:', data);
+      console.log('[getUserByName] Parsed data:', JSON.stringify(data, null, 2));
+      console.log('[getUserByName] Data keys:', Object.keys(data));
+      console.log('[getUserByName] Data.email:', data?.email);
+      console.log('[getUserByName] Data.first_name:', data?.first_name);
+      console.log('[getUserByName] Data.last_name:', data?.last_name);
       
       // API retourneert UserPublicInfoResponse met email, first_name, last_name
       // We converteren dit naar UserModel formaat
       if (data && data.email) {
-        return {
+        const result = {
           email: data.email,
           first_name: data.first_name || firstName,
           last_name: data.last_name || lastName,
         } as UserModel;
+        console.log('[getUserByName] Returning user:', JSON.stringify(result, null, 2));
+        return result;
       }
       
+      console.log('[getUserByName] No email in response, returning null');
       return null;
     }
 
     if (res.status === 404) {
+      console.log('[getUserByName] User not found (404)');
       return null; // Gebruiker niet gevonden
     }
 
@@ -1017,58 +1033,30 @@ export async function searchUsers(query: string): Promise<UserModel[]> {
   const searchTerm = query.trim();
   
   try {
-    // Detecteer of de query eruit ziet als "voornaam achternaam"
     const nameParts = searchTerm.split(/\s+/).filter(part => part.length > 0);
     
     if (nameParts.length === 2) {
-      // Query heeft twee woorden - probeer name-based search
       const [firstName, lastName] = nameParts;
-      try {
-        console.log('[searchUsers] Name-based search:', firstName, lastName);
-        const user = await getUserByName(firstName, lastName);
-        if (user) {
-          console.log('[searchUsers] Found user:', user);
-          return [user];
-        } else {
-          console.log('[searchUsers] No user found with this name');
-          return [];
-        }
-      } catch (nameErr: any) {
-        console.error('[searchUsers] Name search failed:', nameErr?.message);
-        // Als het een 404 is, betekent het gewoon dat de gebruiker niet bestaat
-        if (nameErr?.message?.includes('404') || nameErr?.message?.includes('niet gevonden')) {
-          return [];
-        }
-        throw nameErr;
+      console.log('[searchUsers] Searching:', firstName, lastName);
+      
+      // Get user by name - endpoint returns: {email, first_name, last_name}
+      const user = await getUserByName(firstName, lastName);
+      if (user && user.email) {
+        console.log('[searchUsers] Found:', user);
+        return [user];
       }
+      return [];
     } else if (nameParts.length === 1) {
-      // Één woord - geef duidelijke instructie
-      throw new Error('Voer een volledige naam in (voornaam én achternaam), bijvoorbeeld: "Jan Jansen"');
-    } else if (nameParts.length > 2) {
-      // Meer dan twee woorden - probeer eerste + laatste
+      throw new Error('Voer volledige naam in (voornaam + achternaam)');
+    } else {
+      // Multi-word: use first + last
       const firstName = nameParts[0];
       const lastName = nameParts[nameParts.length - 1];
-      console.log('[searchUsers] Multiple words detected, trying first + last:', firstName, lastName);
-      
-      try {
-        const user = await getUserByName(firstName, lastName);
-        if (user) {
-          return [user];
-        } else {
-          return [];
-        }
-      } catch (nameErr: any) {
-        console.error('[searchUsers] Name search failed:', nameErr?.message);
-        if (nameErr?.message?.includes('404') || nameErr?.message?.includes('niet gevonden')) {
-          return [];
-        }
-        throw nameErr;
-      }
-    } else {
-      throw new Error('Voer een naam in om te zoeken');
+      const user = await getUserByName(firstName, lastName);
+      return user && user.email ? [user] : [];
     }
   } catch (err: any) {
-    console.error('[searchUsers] Search failed:', err);
+    console.error('[searchUsers] Error:', err?.message);
     throw err;
   }
 }

@@ -3,19 +3,20 @@ import HeartIconSvg from '@/assets/images/heart-icon.svg';
 import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
+import { getVideoStats, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
 import { getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -67,7 +68,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   const router = useRouter();
   const isScreenFocused = useIsFocused();
   const [liked, setLiked] = useState(item.liked);
-  const [hearted, setHearted] = useState(false);
+  const [favorited, setFavorited] = useState(item.favorited || false);
   const [likeCount, setLikeCount] = useState(item.likeCount);
   const heartScale = useRef(new Animated.Value(1)).current;
   const likeScale = useRef(new Animated.Value(1)).current;
@@ -75,6 +76,13 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
   const boundedHeight = cardHeight || SCREEN_HEIGHT;
   const [playerStatus, setPlayerStatus] = useState<'idle' | 'loading' | 'readyToPlay' | 'error'>('idle');
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
+
+  // Reset like/favorite state when item changes (e.g., after logout/login)
+  useEffect(() => {
+    setLiked(item.liked);
+    setFavorited(item.favorited || false);
+    setLikeCount(item.likeCount);
+  }, [item.id, item.liked, item.favorited, item.likeCount]);
 
   // Gebruik signedUrl (van backend), anders HLS stream of progressive
   const videoSource = getPlayableVideoUrl(item);
@@ -132,8 +140,13 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
     };
   }, [player]);
 
-  const handleHeartPress = () => {
-    setHearted(!hearted);
+  const handleHeartPress = async () => {
+    const willFavorite = !favorited;
+    
+    // Update UI immediately
+    setFavorited(willFavorite);
+
+    // Animate
     Animated.sequence([
       Animated.timing(heartScale, {
         toValue: 1.2,
@@ -148,13 +161,30 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         easing: Easing.in(Easing.ease),
       }),
     ]).start();
+
+    // Send to backend
+    try {
+      await toggleVideoFavorite(item.id);
+      console.log('[VideoFeed] Favorite toggled for video:', item.id);
+      
+      // Fetch actual stats from backend to verify
+      const stats = await getVideoStats(item.id);
+      console.log('[VideoFeed] Updated stats after favorite:', stats);
+    } catch (error: any) {
+      console.error('[VideoFeed] Error toggling favorite:', error);
+      // Revert UI if request fails
+      setFavorited(!willFavorite);
+    }
   };
 
-  const handleLikePress = () => {
+  const handleLikePress = async () => {
     const willLike = !liked;
+    
+    // Update UI immediately for better UX
     setLiked(willLike);
     setLikeCount((prev) => (willLike ? prev + 1 : prev - 1));
 
+    // Animate
     if (willLike) {
       Animated.sequence([
         Animated.parallel([
@@ -199,6 +229,26 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
           easing: Easing.out(Easing.quad),
         }),
       ]).start();
+    }
+
+    // Send like to backend
+    try {
+      await toggleVideoLike(item.id);
+      console.log('[VideoFeed] Like toggled for video:', item.id);
+      
+      // Fetch actual stats from backend to verify
+      const stats = await getVideoStats(item.id);
+      console.log('[VideoFeed] Updated stats:', stats);
+      
+      // Update with real data from backend
+      if (typeof stats.likes_count === 'number') {
+        setLikeCount(stats.likes_count);
+      }
+    } catch (error: any) {
+      console.error('[VideoFeed] Error toggling like:', error);
+      // Revert UI if request fails
+      setLiked(!willLike);
+      setLikeCount((prev) => (!willLike ? prev + 1 : prev - 1));
     }
   };
 
@@ -281,11 +331,11 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         activeOpacity={0.8}
         onPress={handleHeartPress}
         accessibilityRole="button"
-        accessibilityLabel={hearted ? 'Verwijder uit favorieten' : 'Markeer als favoriet'}
-        accessibilityState={{ selected: hearted }}
+        accessibilityLabel={favorited ? 'Verwijder uit favorieten' : 'Toevoegen aan favorieten'}
+        accessibilityState={{ selected: favorited }}
       >
         <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-          {hearted ? (
+          {favorited ? (
             <HeartTrueIconSvg width={56} height={56} accessible={false} />
           ) : (
             <HeartIconSvg width={56} height={56} accessible={false} />
