@@ -44,6 +44,8 @@ export interface UserModel {
   last_name: string;
   password?: string;
   phone_number?: string;
+  phone_number_visible?: boolean;
+  profile_photo_url?: string;
   sector?: string;
 }
 
@@ -691,22 +693,50 @@ export async function getUserInterests(): Promise<UserInterestsInput> {
 export async function updateUserInterests(payload: UserInterestsInput): Promise<UserInterestsInput> {
   try {
     // Get the interests array from payload (interest names/strings)
-    const interestArray = Array.isArray(payload.interests) ? payload.interests : [];
+    const selectedInterestArray = Array.isArray(payload.interests) ? payload.interests : [];
+    console.log('[updateUserInterests] Selected interests:', selectedInterestArray);
 
-    // Convert to API format: array of {id, value} objects with the interest names
-    const interestsForApi = interestArray.map((interest, index) => ({
-      id: index + 1,
-      value: true,
-    }));
+    // Fetch the full current interests data directly from API to get IDs and keys
+    const res = await withAutoRefresh(
+      ["/users/me/interests", "/api/users/me/interests"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    
+    if (!res.ok) {
+      throw new Error('Could not fetch current interests');
+    }
+    
+    const currentData = await res.json();
+    console.log('[updateUserInterests] Full API data:', JSON.stringify(currentData, null, 2));
+    
+    if (!currentData.interests || !Array.isArray(currentData.interests)) {
+      throw new Error('Invalid interests format from API');
+    }
 
-    // Build the API payload according to Swagger spec
+    // Map all interests, setting value to true only for selected ones
+    const interestsForApi = currentData.interests.map((interest: any) => {
+      const isSelected = selectedInterestArray.some((selected: string) => 
+        selected && interest.key && selected.toLowerCase() === interest.key.toLowerCase()
+      );
+      console.log(`[updateUserInterests] Interest ${interest.key}: selected=${isSelected}`);
+      return {
+        id: interest.id,
+        key: interest.key,
+        value: isSelected,
+      };
+    });
+
+    // Build the API payload with ALL interests
     const apiPayload: any = {
       interests: interestsForApi,
     };
 
     console.log('[updateUserInterests] Sending payload:', JSON.stringify(apiPayload, null, 2));
 
-    const res = await withAutoRefresh(
+    const updateRes = await withAutoRefresh(
       ["/users/me/interests", "/api/users/me/interests"],
       {
         method: "PUT",
@@ -714,19 +744,19 @@ export async function updateUserInterests(payload: UserInterestsInput): Promise<
         body: JSON.stringify(apiPayload),
       },
     );
-    if (!res.ok) {
-      if (res.status >= 500) {
+    if (!updateRes.ok) {
+      if (updateRes.status >= 500) {
         throw new Error("Server tijdelijk niet beschikbaar. Probeer het later opnieuw.");
       }
-      const errorMsg = await parseErrorMessage(res);
+      const errorMsg = await parseErrorMessage(updateRes);
       console.error('[updateUserInterests] API error:', errorMsg);
       throw new Error(errorMsg);
     }
     // Sommige backends geven 204 No Content terug op een geslaagde update.
-    if (res.status === 204) {
+    if (updateRes.status === 204) {
       return payload;
     }
-    const text = await res.text();
+    const text = await updateRes.text();
     if (!text) return payload;
     try {
       return JSON.parse(text);
@@ -1081,5 +1111,81 @@ export async function sendNotification(payload: NotificationRequest): Promise<No
   } catch (err: any) {
     console.warn("[NotificationAPI] Notificatie call faalde:", err?.message || err);
     throw new Error(normalizeNetworkError(err));
+  }
+}
+
+// Profile Photo Upload and Download
+export interface UploadProfilePhotoResponse {
+  message?: string;
+  url?: string;
+  profile_photo_url?: string;
+}
+
+export interface PresignProfilePhotoGetResponse {
+  url?: string;
+  presigned_url?: string;
+}
+
+export async function uploadProfilePhoto(fileUri: string): Promise<UploadProfilePhotoResponse> {
+  try {
+    // Read file from URI
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', blob as any, 'profile-photo.jpg');
+
+    // Use withAutoRefresh to handle token refresh
+    const uploadRes = await withAutoRefresh(
+      ["/users/me/profile-photo", "/api/users/me/profile-photo"],
+      {
+        method: 'POST',
+        body: formData as any,
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const errorMsg = await parseErrorMessage(uploadRes);
+      console.error('[uploadProfilePhoto] Upload error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await uploadRes.json();
+    console.log('[uploadProfilePhoto] Upload succeeded:', data);
+    return data;
+  } catch (err: any) {
+    console.error('[uploadProfilePhoto] Error:', err);
+    throw new Error(normalizeNetworkError(err));
+  }
+}
+
+export async function getProfilePhotoUrl(): Promise<PresignProfilePhotoGetResponse> {
+  try {
+    const res = await withAutoRefresh(
+      ["/users/me/profile-photo/url", "/api/users/me/profile-photo/url"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 503) {
+        console.log('[getProfilePhotoUrl] Photo endpoint not available or no photo found (status ' + res.status + ')');
+        return {};
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[getProfilePhotoUrl] Error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await res.json();
+    console.log('[getProfilePhotoUrl] Success:', data);
+    return data;
+  } catch (err: any) {
+    console.warn('[getProfilePhotoUrl] Warning - profile photo unavailable:', err?.message);
+    // Return empty object instead of throwing so the app continues to work
+    return {};
   }
 }

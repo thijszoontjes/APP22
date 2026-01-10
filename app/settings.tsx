@@ -4,7 +4,8 @@ import MailSvg from '@/assets/images/mail-alt-3-svgrepo-com.svg';
 import NotificationSvg from '@/assets/images/notification-12-svgrepo-com.svg';
 import PhoneSvg from '@/assets/images/phone-svgrepo-com.svg';
 import AppHeader from '@/components/app-header';
-import { getCurrentUserProfile, getUserInterests, logoutApi, updateUserInterests, updateUserProfile } from '@/hooks/useAuthApi';
+import { getCurrentUserProfile, getUserInterests, logoutApi, updateUserInterests, updateUserProfile, uploadProfilePhoto } from '@/hooks/useAuthApi';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -13,17 +14,17 @@ const ORANGE = '#FF8700';
 
 const SECTOR_OPTIONS = [
   'Gezondheidszorg en Welzijn',
-  'Handel en dienstverlening',
+  'Handel en Dienstverlening',
   'ICT',
-  'Justitie, veiligheid en openbaar bestuur',
-  'Milieu en Agrarische sector',
+  'Justitie, Veiligheid en Openbaar Bestuur',
+  'Milieu en Agrarische Sector',
   'Media en Communicatie',
-  'Onderwijs, cultuur en wetenschap',
-  'Techniek, productie en bouw',
-  'Toerisme, recreatie en horeca',
+  'Onderwijs, Cultuur en Wetenschap',
+  'Techniek, Productie en Bouw',
+  'Toerisme, Recreatie en Horeca',
   'Transport en Logistiek',
-  'Behoefte aan investering',
-  'Interesse om te investeren'
+  'Behoefte aan Investering',
+  'Interesse om te Investeren'
 ];
 
 export default function SettingsPage() {
@@ -60,14 +61,27 @@ export default function SettingsPage() {
             sector: userProfile.sector || '',
             biografie: userProfile.biography || '',
           });
+          // Set contactInfoProfiel based on phone_number_visible
+          setSwitches(prev => ({
+            ...prev,
+            contactInfoProfiel: userProfile.phone_number_visible || false,
+          }));
         }
 
         // Load user interests
         const interests = await getUserInterests();
         console.log('[Settings] Interesses ingeladen:', interests);
         // Map the interests from the API response to match SECTOR_OPTIONS
-        if (interests && interests.interests) {
-          setSelectedInteresses(interests.interests);
+        if (interests && interests.interests && Array.isArray(interests.interests)) {
+          // getUserInterests returns an array of strings (interest names where value is true)
+          // Filter to only include those that exist in SECTOR_OPTIONS
+          const selectedKeys = interests.interests.filter((interestName: string) => 
+            SECTOR_OPTIONS.some(sector => 
+              sector.toLowerCase() === interestName.toLowerCase()
+            )
+          );
+          console.log('[Settings] Gefilterde interesses:', selectedKeys);
+          setSelectedInteresses(selectedKeys);
         }
       } catch (error) {
         console.error('Error loading user profile:', error);
@@ -91,6 +105,33 @@ export default function SettingsPage() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleUploadProfilePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        console.log('[Settings] Foto geselecteerd:', asset.uri);
+        
+        setSaving(true);
+        const uploadResponse = await uploadProfilePhoto(asset.uri);
+        console.log('[Settings] Profiel foto geupload:', uploadResponse);
+        
+        Alert.alert('Succes', 'Profielfoto succesvol geupload');
+      }
+    } catch (error: any) {
+      console.error('[Settings] Error uploading profile photo:', error);
+      Alert.alert('Fout', error?.message || 'Kon profiel foto niet uploaden');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleInteresseToggle = (interesse: string) => {
@@ -161,11 +202,13 @@ export default function SettingsPage() {
         job_function: formData.functie || '',
         sector: formData.sector || '',
         biography: formData.biografie || '',
+        phone_number_visible: switches.contactInfoProfiel,
       };
 
-      console.log('[Settings] Profiel gegevens verzenden:', updatePayload);
+      console.log('[Settings] Profiel gegevens verzenden:', JSON.stringify(updatePayload, null, 2));
+      console.log('[Settings] phone_number_visible waarde:', switches.contactInfoProfiel);
       const response = await updateUserProfile(updatePayload);
-      console.log('[Settings] Profiel succesvol bijgewerkt:', response);
+      console.log('[Settings] Profiel succesvol bijgewerkt:', JSON.stringify(response, null, 2));
 
       // Update user interests
       if (selectedInteresses.length > 0) {
@@ -200,7 +243,11 @@ export default function SettingsPage() {
         {/* Profielfoto */}
         <View style={styles.profileSection}>
           <View style={styles.profilePicCircle} />
-          <TouchableOpacity style={styles.editProfileButton} activeOpacity={0.8}>
+          <TouchableOpacity 
+            style={styles.editProfileButton} 
+            activeOpacity={0.8}
+            onPress={handleUploadProfilePhoto}
+            disabled={saving}>
             <Text style={styles.editProfileButtonText}>Profiel foto bewerken</Text>
             <EditSvg width={18} height={18} />
           </TouchableOpacity>
