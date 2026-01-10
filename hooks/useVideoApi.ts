@@ -246,6 +246,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
   const fallbackToAllVideos = async (): Promise<FeedResponse | null> => {
     try {
       console.log('[VideoAPI] Attempting fallback to /videos endpoint');
+      console.log('[VideoAPI] WARNING: /videos may only return current user videos - not all videos!');
       const listRes = await videoRequestWithAuth("/videos", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -258,11 +259,36 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
       const listData = await listRes.json();
       console.log(`[VideoAPI] Fallback /videos returned ${listData?.items?.length || 0} items`);
+      
+      // Log ownership info to debug the filtering issue
+      if (listData?.items?.length > 0) {
+        console.log('[VideoAPI] Video ownership info from /videos:');
+        listData.items.forEach((item: any, idx: number) => {
+          const ownerId = item?.owner?.id || item?.userId || item?.ownerId || 'NO_OWNER';
+          const ownerName = item?.owner?.displayName || 'NO_NAME';
+          console.log(`[VideoAPI]   ${idx + 1}. Video ${item.id}: owner.id="${ownerId}", displayName="${ownerName}"`);
+        });
+      }
+      
       const normalized = toFeedResponse(listData);
       
       // Enrich with signed URLs but keep all videos even if they're still processing
       await enrichItemsWithSignedUrls(normalized.items);
       attachLocalUris(normalized.items);
+      
+      // CRITICAL: Don't call enrichWithDisplayName here if videos already have owner info from backend
+      // This was causing all videos to be marked as belonging to current user
+      console.log('[VideoAPI] Checking if videos need displayName enrichment...');
+      const needsEnrichment = normalized.items.some(item => 
+        item.owner?.id && (!item.owner.displayName || item.owner.displayName === 'N/A' || item.owner.displayName === 'Onbekend')
+      );
+      
+      if (needsEnrichment) {
+        console.log('[VideoAPI] Some videos need displayName enrichment');
+        await enrichWithDisplayName(normalized.items);
+      } else {
+        console.log('[VideoAPI] All videos already have displayName or no owner.id - skipping enrichment');
+      }
       
       console.log(`[VideoAPI] Fallback complete: ${normalized.items.length} videos available`);
       return normalized;
@@ -304,25 +330,50 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     console.log(`[VideoAPI] Feed response received with ${data?.items?.length || 0} items`);
     const normalized = toFeedResponse(data);
     
+    // Debug: log ownership and categories of feed videos
+    if (normalized.items.length > 0) {
+      console.log('[VideoAPI] Feed videos received:');
+      normalized.items.forEach((item, idx) => {
+        const ownerId = item?.owner?.id || item?.userId || item?.ownerId || 'NO_OWNER';
+        const ownerName = item?.owner?.displayName || 'NO_NAME';
+        console.log(`[VideoAPI]   ${idx + 1}. Video ${item.id}: owner.id="${ownerId}", displayName="${ownerName}", category="${item.category || 'GEEN'}", title="${item.title}"`);
+      });
+    }
+    
     // Attach local URIs first (for newly uploaded videos)
     attachLocalUris(normalized.items);
     console.log(`[VideoAPI] Local URIs attached. Items with local URI: ${normalized.items.filter(i => i.localUri).length}`);
 
     // `/feed` is gepersonaliseerd en kan leeg zijn als de recommendation-service (nog) niks teruggeeft
     // of als de upload nog wordt verwerkt. Val dan terug op `/videos` (algemene lijst).
-    if (!normalized.items.length) {
-      console.log('[VideoAPI] Feed is empty, trying fallback to /videos');
+    // NOTE: Als feed minder dan 3 video's heeft, probeer /videos en merge de resultaten.
+    // BELANGRIJK: /feed zou video's van ALLE gebruikers moeten bevatten (gepersonaliseerde feed).
+    // Als je alleen je eigen video's ziet, dan is er een probleem met de recommendation service of /feed endpoint.
+    if (normalized.items.length < 3) {
+      console.log(`[VideoAPI] ⚠️  Feed has only ${normalized.items.length} items - augmenting with /videos`);
+      console.log('[VideoAPI] NOTE: /videos endpoint may only return current user videos, not all videos!');
+      console.log('[VideoAPI] If you only see your own videos, check if /feed endpoint is working correctly');
       const fallback = await fallbackToAllVideos();
-      if (fallback && fallback.items.length) {
-        console.log(`[VideoAPI] Feed leeg; fallback ${fallback.items.length} video's geladen (/videos)`);
-        return fallback;
+      if (fallback && fallback.items.length > normalized.items.length) {
+        // Merge: gebruik feed items eerst, dan voeg unieke items van /videos toe
+        const feedIds = new Set(normalized.items.map(item => item.id));
+        const additionalItems = fallback.items.filter(item => !feedIds.has(item.id));
+        
+        if (additionalItems.length > 0) {
+          console.log(`[VideoAPI] Adding ${additionalItems.length} videos from /videos to feed`);
+          normalized.items.push(...additionalItems);
+          normalized.total = normalized.items.length;
+        }
       }
-      console.log('[VideoAPI] Feed leeg en /videos ook leeg - geen video\'s beschikbaar');
-      return normalized;
+    } else {
+      console.log(`[VideoAPI] ✓ Feed has ${normalized.items.length} items - using /feed endpoint directly`);
     }
 
     // Enrich with signed URLs - but keep all videos even if enrichment fails
     await enrichItemsWithSignedUrls(normalized.items);
+    
+    // Enrich with displayName from JWT token for user's own videos
+    await enrichWithDisplayName(normalized.items);
     
     // Count videos by status
     const withSignedUrl = normalized.items.filter(i => i.signedUrl).length;
@@ -526,8 +577,66 @@ const attachLocalUris = (items: FeedItem[]) => {
   }
 };
 
+// Enrich videos with displayName from JWT token if missing
+const enrichWithDisplayName = async (items: FeedItem[]) => {
+  try {
+    const { accessToken } = await getAuthTokens();
+    if (!accessToken) return;
+
+    const tokenPayload = decodeJwtPayload(accessToken);
+    if (!tokenPayload) return;
+
+    const firstName = tokenPayload.given_name || tokenPayload.givenName || tokenPayload.first_name || '';
+    const lastName = tokenPayload.family_name || tokenPayload.familyName || tokenPayload.last_name || '';
+    const displayName = `${firstName} ${lastName}`.trim();
+    
+    if (!displayName) return;
+
+    const tokenUserId = String(tokenPayload?.sub || '').trim();
+    if (!tokenUserId) return;
+    
+    console.log(`[VideoAPI] enrichWithDisplayName: Current user ID = ${tokenUserId}, name = ${displayName}`);
+    
+    for (const item of items) {
+      // Log ownership info for debugging
+      const ownerId = item?.owner?.id ? String(item.owner.id).trim() : "";
+      const userId = item?.userId != null ? String(item.userId).trim() : "";
+      const ownerIdAlt = item?.ownerId != null ? String(item.ownerId).trim() : "";
+      const existingDisplayName = item?.owner?.displayName || '';
+      
+      console.log(`[VideoAPI]   Video ${item.id}: ownerId="${ownerId}", userId="${userId}", ownerIdAlt="${ownerIdAlt}", existing displayName="${existingDisplayName}"`);
+      
+      // Only enrich if we have a valid owner.id AND it matches current user AND displayName is missing
+      // CRITICAL: Don't enrich if owner.id is missing or empty - that means backend hasn't set ownership yet
+      if (!ownerId) {
+        console.log(`[VideoAPI]   Video ${item.id}: Skipping - no owner.id from backend`);
+        continue;
+      }
+      
+      const isMyVideo = ownerId === tokenUserId;
+      
+      // ONLY add displayName if it's actually missing or placeholder AND it's confirmed to be my video
+      if (isMyVideo && (!existingDisplayName || existingDisplayName === 'N/A' || existingDisplayName === 'Onbekend')) {
+        if (!item.owner) {
+          item.owner = { id: tokenUserId, displayName };
+        } else {
+          item.owner.displayName = displayName;
+        }
+        console.log(`[VideoAPI]   Video ${item.id}: ✓ Enriched with displayName: ${displayName}`);
+      } else if (isMyVideo) {
+        console.log(`[VideoAPI]   Video ${item.id}: Already has displayName: ${existingDisplayName}`);
+      } else {
+        console.log(`[VideoAPI]   Video ${item.id}: Not my video (owner: ${ownerId}, me: ${tokenUserId})`);
+      }
+    }
+  } catch (err) {
+    console.warn('[VideoAPI] Could not enrich videos with displayName:', err);
+  }
+};
+
 export async function createVideoUpload(
-  payload: CreateVideoRequest
+  payload: CreateVideoRequest,
+  includeUserInfo: boolean = false
 ): Promise<UploadResponse> {
   console.log('');
   console.log('═══════════════════════════════════════════════════════════════');
@@ -540,6 +649,8 @@ export async function createVideoUpload(
   // Backend validatie blijkt in productie soms strenger dan de OpenAPI beschrijving.
   // Stuur daarom standaard een minimale payload (alleen `title` + optioneel `contentType`).
   // Extra metadata kan later toegevoegd worden als de backend dit overal accepteert.
+  // NOTE: firstName/lastName worden NIET geaccepteerd door de backend (geeft 400 error).
+  // De owner info wordt automatisch door de backend bepaald op basis van de JWT token.
   const uploadPayload: Partial<CreateVideoRequest> = {
     title: payload.title || "Nieuwe Video",
     ...(payload.contentType ? { contentType: payload.contentType } : {}),
@@ -776,15 +887,23 @@ export async function getMyVideos(): Promise<FeedResponse> {
     const items: FeedItem[] = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
     const total = typeof data?.total === "number" ? data.total : items.length;
 
+    console.log(`[VideoAPI] /videos returned ${items.length} total videos`);
+    items.forEach((item, idx) => {
+      console.log(`[VideoAPI]   Video ${idx + 1}: ID=${item.id}, title="${item.title}", category="${item.category || 'GEEN'}", owner=${item.owner?.displayName || 'N/A'}, userId=${item.userId || 'N/A'}`);
+    });
+
     const { accessToken } = await getAuthTokens();
     const tokenPayload = accessToken ? decodeJwtPayload(accessToken) : null;
     const tokenUserId = String(
       tokenPayload?.sub ?? tokenPayload?.user_id ?? tokenPayload?.userId ?? ""
     ).trim();
 
+    console.log(`[VideoAPI] Token user ID: ${tokenUserId || '(none)'}`);
+
     if (!tokenUserId) {
       const enriched = await enrichItemsWithSignedUrls(items);
       attachLocalUris(enriched);
+      console.log(`[VideoAPI] No user ID in token - returning all ${enriched.length} videos`);
       return { items: enriched, total };
     }
 
@@ -792,11 +911,22 @@ export async function getMyVideos(): Promise<FeedResponse> {
       const ownerId = video?.owner?.id ? String(video.owner.id).trim() : "";
       const userId = video?.userId != null ? String(video.userId).trim() : "";
       const ownerIdAlt = video?.ownerId != null ? String(video.ownerId).trim() : "";
-      return ownerId === tokenUserId || userId === tokenUserId || ownerIdAlt === tokenUserId;
+      const matches = ownerId === tokenUserId || userId === tokenUserId || ownerIdAlt === tokenUserId;
+      
+      if (!matches) {
+        console.log(`[VideoAPI]   ✗ Video ${video.id} filtered out (owner=${ownerId}, userId=${userId}, ownerIdAlt=${ownerIdAlt})`);
+      } else {
+        console.log(`[VideoAPI]   ✓ Video ${video.id} kept (matches user ${tokenUserId})`);
+      }
+      
+      return matches;
     });
+
+    console.log(`[VideoAPI] After filtering: ${filtered.length}/${items.length} videos belong to current user`);
 
     const enriched = await enrichItemsWithSignedUrls(filtered);
     attachLocalUris(enriched);
+    await enrichWithDisplayName(enriched);
 
     console.log(`[VideoAPI] ${enriched.length}/${items.length} eigen video's geladen (fallback /videos)`);
     return { items: enriched, total: enriched.length };

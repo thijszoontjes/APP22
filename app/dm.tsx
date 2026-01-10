@@ -5,16 +5,16 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 const ORANGE = '#FF8700';
@@ -47,11 +47,6 @@ export default function DMChatPage() {
   const [contactEmail, setContactEmail] = useState<string | null>(initialEmail || null);
   const [contactName, setContactName] = useState<string | undefined>(userName);
   const scrollRef = useRef<ScrollView>(null);
-
-  const dayLabel = useMemo(() => {
-    const first = messages[0]?.createdAt;
-    return first ? getDayLabel(first) : '';
-  }, [messages]);
 
   useEffect(() => {
     navigation.setOptions?.({ headerShown: false });
@@ -217,8 +212,13 @@ export default function DMChatPage() {
       <AppHeader
         title={contactName || contactEmail || 'Onbekende contact'}
         leading={
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityRole="button">
-            <ArrowBackSvg width={24} height={24} />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={24} height={24} accessible={false} />
           </TouchableOpacity>
         }
       />
@@ -239,37 +239,48 @@ export default function DMChatPage() {
           {error ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadConversation} disabled={loading}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={loadConversation}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Opnieuw proberen"
+              >
                 <Text style={styles.retryText}>{loading ? 'Laden...' : 'Opnieuw proberen'}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
           {loading ? (
             <View style={styles.loadingWrap}>
-              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} />
+              <Image source={require('@/assets/images/send-icon.png')} style={[styles.sendIconLarge, { tintColor: ORANGE }]} accessible={false} />
               <Text style={styles.loadingText}>Berichten ophalen...</Text>
             </View>
           ) : null}
-          {dayLabel ? (
-            <View style={styles.dayChip}>
-              <Text style={styles.dayChipText}>{dayLabel}</Text>
-            </View>
-          ) : null}
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const isMe = message.from === 'me';
+            const prevMessage = index > 0 ? messages[index - 1] : null;
+            const showDateSeparator = !prevMessage || !isSameDay(prevMessage.createdAt, message.createdAt);
+            
             return (
-              <View key={message.id} style={isMe ? styles.bubbleRowRight : styles.bubbleRowLeft}>
-                <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                  <Text style={isMe ? styles.bubbleTextRight : styles.bubbleTextLeft}>{message.text}</Text>
-                  <Text style={isMe ? styles.bubbleTimeRight : styles.bubbleTimeLeft}>{formatTime(message.createdAt)}</Text>
+              <React.Fragment key={message.id}>
+                {showDateSeparator && (
+                  <View style={styles.dayChip}>
+                    <Text style={styles.dayChipText}>{getDayLabel(message.createdAt)}</Text>
+                  </View>
+                )}
+                <View style={isMe ? styles.bubbleRowRight : styles.bubbleRowLeft}>
+                  <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                    <Text style={isMe ? styles.bubbleTextRight : styles.bubbleTextLeft}>{message.text}</Text>
+                    <Text style={isMe ? styles.bubbleTimeRight : styles.bubbleTimeLeft}>{formatTime(message.createdAt)}</Text>
+                  </View>
                 </View>
-              </View>
+              </React.Fragment>
             );
           })}
         </ScrollView>
         <View style={styles.inputBar}>
           <View style={styles.inputContainer}>
-            <View style={styles.plusCircle}>
+            <View style={styles.plusCircle} accessible={false}>
               <Text style={styles.plusIcon}>{'+'}</Text>
             </View>
             <TextInput
@@ -279,9 +290,17 @@ export default function DMChatPage() {
               placeholder="Bericht...."
               placeholderTextColor="#B4B4B4"
               multiline
+              accessibilityLabel="Bericht"
             />
-            <TouchableOpacity activeOpacity={0.85} style={[styles.sendButton, sending && { opacity: 0.7 }]} onPress={handleSend} disabled={sending}>
-              <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.sendButton, sending && { opacity: 0.7 }]}
+              onPress={handleSend}
+              disabled={sending}
+              accessibilityRole="button"
+              accessibilityLabel="Verstuur bericht"
+            >
+              <Image source={require('@/assets/images/send-icon.png')} style={styles.sendIconLarge} accessible={false} />
             </TouchableOpacity>
           </View>
         </View>

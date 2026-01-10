@@ -145,6 +145,7 @@ export default function RegisterScreen() {
             source={require('@/assets/images/login-header.png')}
             style={styles.heroImage}
             resizeMode="cover"
+            accessible={false}
           />
         </View>
 
@@ -158,6 +159,7 @@ export default function RegisterScreen() {
               autoCapitalize="words"
               value={name}
               onChangeText={setName}
+              accessibilityLabel="Naam"
             />
           </View>
 
@@ -169,6 +171,7 @@ export default function RegisterScreen() {
               autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
+              accessibilityLabel="E-mailadres"
             />
           </View>
 
@@ -179,6 +182,7 @@ export default function RegisterScreen() {
               keyboardType="phone-pad"
               value={phone}
               onChangeText={setPhone}
+              accessibilityLabel="Telefoonnummer"
             />
           </View>
 
@@ -189,12 +193,18 @@ export default function RegisterScreen() {
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              accessibilityLabel="Wachtwoord"
             />
-            <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
+            <TouchableOpacity
+              onPress={() => setShowPassword((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Verberg wachtwoord' : 'Toon wachtwoord'}
+            >
               <Image
                 source={require('@/assets/images/eye.png')}
                 style={styles.eyeImg}
                 resizeMode="contain"
+                accessible={false}
               />
             </TouchableOpacity>
           </View>
@@ -206,12 +216,18 @@ export default function RegisterScreen() {
               secureTextEntry={!showRepeat}
               value={repeatPassword}
               onChangeText={setRepeatPassword}
+              accessibilityLabel="Wachtwoord herhalen"
             />
-            <TouchableOpacity onPress={() => setShowRepeat((prev) => !prev)}>
+            <TouchableOpacity
+              onPress={() => setShowRepeat((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={showRepeat ? 'Verberg wachtwoord herhalen' : 'Toon wachtwoord herhalen'}
+            >
               <Image
                 source={require('@/assets/images/eye.png')}
                 style={styles.eyeImg}
                 resizeMode="contain"
+                accessible={false}
               />
             </TouchableOpacity>
           </View>
@@ -221,12 +237,14 @@ export default function RegisterScreen() {
           <TouchableOpacity
             style={[styles.submitButton, loading && { opacity: 0.75 }]}
             onPress={handleRegister}
-            disabled={loading}>
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Registreer">
             <Text style={styles.submitText}>{loading ? 'Registreren...' : 'Registreer'}</Text>
           </TouchableOpacity>
 
           <Link href="/login" asChild>
-            <TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Terug naar inloggen">
               <Text style={styles.backLink}>Terug naar inloggen</Text>
             </TouchableOpacity>
           </Link>

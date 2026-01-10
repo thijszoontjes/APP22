@@ -97,8 +97,14 @@ export default function SearchScreen() {
         title="Zoeken"
         backgroundColor="#F6F6F6"
         leading={
-          <TouchableOpacity style={styles.iconCircle} activeOpacity={0.85} onPress={() => router.replace('/(tabs)')}>
-            <ArrowBackSvg width={22} height={22} />
+          <TouchableOpacity
+            style={styles.iconCircle}
+            activeOpacity={0.85}
+            onPress={() => router.replace('/(tabs)')}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={22} height={22} accessible={false} />
           </TouchableOpacity>
         }
       />
@@ -117,8 +123,10 @@ export default function SearchScreen() {
             autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="search"
+            accessibilityLabel="Zoek op volledige naam"
+            accessibilityHint="Vul een voornaam en achternaam in om te zoeken"
           />
-          <SearchIconSvg width={20} height={20} />
+          <SearchIconSvg width={20} height={20} accessible={false} />
         </View>
         
         <View style={styles.fullDivider} />
@@ -141,6 +149,8 @@ export default function SearchScreen() {
                   performSearch();
                 }}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Opnieuw proberen"
               >
                 <Text style={styles.retryButtonText}>Opnieuw proberen</Text>
               </TouchableOpacity>
@@ -196,6 +206,8 @@ export default function SearchScreen() {
                     activeOpacity={0.9}
                     style={styles.profileButton}
                     onPress={() => handleProfilePress(result)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open profiel van ${result.first_name || ''} ${result.last_name || ''}`.trim()}
                   >
                     <Text style={styles.profileButtonText}>Open profiel</Text>
                   </TouchableOpacity>

@@ -1,5 +1,5 @@
 import AppHeader from '@/components/app-header';
-import { ensureValidSession, fetchConversation, getUserById } from '@/hooks/useAuthApi';
+import { ensureValidSession, fetchConversations, getUserById } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -142,16 +142,69 @@ export default function ChatPage() {
         return;
       }
 
-      const saved = await readStoredChats();
-      if (!saved.length) {
+      // Fetch conversations from backend
+      const conversations = await fetchConversations();
+      
+      if (!conversations || conversations.length === 0) {
         setChats([]);
-        setError('We hebben nog geen video-feed; gebruik het e-mailadresveld bovenaan om een chat te starten.');
-      } else {
-        const previews = await Promise.all(saved.map(fetchPreview));
-        const filtered = previews.filter(Boolean) as ChatListItem[];
+        setError('Nog geen gesprekken. Gebruik het e-mailadresveld bovenaan om een chat te starten.');
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
-        if (filtered.length === 0) {
-          // Fallback: toon opgeslagen contacten op basis van e-mail
+      // Map backend conversations to UI format
+      const chatItems: ChatListItem[] = await Promise.all(
+        conversations.map(async (conv) => {
+          const email = conv.with_email;
+          let name = email;
+          let userId: string | undefined;
+
+          // Try to fetch user details to get name
+          try {
+            // We don't have userId here, so we'll need to keep email as name for now
+            // or enhance the backend to return more user details
+            name = email;
+          } catch {
+            name = email;
+          }
+
+          return {
+            id: email,
+            email,
+            userId,
+            name,
+            message: conv.last_message || 'Nog geen berichten',
+            time: formatTimeLabel(conv.last_at),
+            lastAt: new Date(conv.last_at).getTime(),
+            initials: deriveInitials(name),
+          };
+        })
+      );
+
+      // Sort by most recent
+      chatItems.sort((a, b) => b.lastAt - a.lastAt);
+      setChats(chatItems);
+
+      // Update stored chats for offline access
+      const storedChats = chatItems.map(chat => ({
+        email: chat.email,
+        userId: chat.userId,
+        name: chat.name,
+      }));
+      try {
+        await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(storedChats));
+      } catch {
+        // best-effort storage
+      }
+    } catch (err: any) {
+      console.error('[ChatPage] Load chats error:', err);
+      setError(err?.message || 'Kon chats niet laden.');
+      
+      // Fallback to stored chats if available
+      try {
+        const saved = await readStoredChats();
+        if (saved.length > 0) {
           const placeholders: ChatListItem[] = saved.map(contact => {
             const name = contact.name || contact.email;
             return {
@@ -159,48 +212,23 @@ export default function ChatPage() {
               email: contact.email,
               userId: contact.userId,
               name,
-              message: 'Nog geen berichten',
+              message: 'Offline - kon niet verversen',
               time: '',
               lastAt: 0,
               initials: deriveInitials(name),
             };
           });
           setChats(placeholders);
-          setError('Kon chats niet verversen; we tonen opgeslagen contacten.');
-          setLoading(false);
-          setRefreshing(false);
-          return;
+          setError('Offline modus - toon opgeslagen contacten');
         }
-        
-        // Remove chats without messages from storage
-        const validEmails = filtered.map(chat => chat.email);
-        const validContacts = saved.filter(contact => validEmails.includes(contact.email));
-        
-        if (filtered.length > 0 && validContacts.length !== saved.length) {
-          // Update storage to only keep valid chats
-          try {
-            await SecureStore.setItemAsync(LAST_CHATS_KEY, JSON.stringify(validContacts));
-            console.log('[ChatPage] Cleaned up', saved.length - validContacts.length, 'empty chats from storage');
-          } catch {
-            // best-effort cleanup
-          }
-        }
-        
-        filtered.sort((a, b) => b.lastAt - a.lastAt);
-        setChats(filtered);
-        
-        if (filtered.length === 0) {
-          setError('Geen actieve gesprekken gevonden. Start een chat met het e-mailadresveld bovenaan.');
-        }
+      } catch {
+        setChats([]);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Kon chats niet laden.');
-      setChats([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [readStoredChats, fetchPreview]);
+  }, [readStoredChats]);
 
   useEffect(() => {
     loadChats();
@@ -244,9 +272,17 @@ export default function ChatPage() {
               placeholderTextColor="#8a8a8a"
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="E-mailadres ontvanger"
+              accessibilityHint="Vul het e-mailadres in om een chat te starten"
             />
           </View>
-          <TouchableOpacity style={styles.manualButton} onPress={handleStartManual} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.manualButton}
+            onPress={handleStartManual}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open chat"
+          >
             <Text style={styles.manualButtonText}>Open chat</Text>
           </TouchableOpacity>
           <Text style={styles.infoText}>Gebruik het e-mailadres van de ontvanger om een chat te starten.</Text>
@@ -264,7 +300,12 @@ export default function ChatPage() {
           {error ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadChats}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={loadChats}
+                accessibilityRole="button"
+                accessibilityLabel="Opnieuw laden"
+              >
                 <Text style={styles.retryText}>Opnieuw laden</Text>
               </TouchableOpacity>
             </View>
@@ -280,15 +321,20 @@ export default function ChatPage() {
               <View style={styles.chatRow}>
                 <View style={styles.avatarRing}>
                   {chat.avatar ? (
-                    <Image source={chat.avatar} style={styles.avatarImage} />
+                    <Image source={chat.avatar} style={styles.avatarImage} accessible={false} />
                   ) : (
-                    <View style={styles.avatarFallback}>
+                    <View style={styles.avatarFallback} accessible={false}>
                       <Text style={styles.avatarInitials}>{chat.initials}</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.textBlock}>
-                  <TouchableOpacity onPress={() => handleOpenDM(chat)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={() => handleOpenDM(chat)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open chat met ${chat.name}`}
+                  >
                     <Text style={styles.name}>{chat.name}</Text>
                   </TouchableOpacity>
                   <Text style={styles.message} numberOfLines={1}>

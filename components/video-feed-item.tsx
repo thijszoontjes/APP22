@@ -276,12 +276,19 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         </View>
       )}
 
-      <TouchableOpacity style={styles.topRightIcon} activeOpacity={0.8} onPress={handleHeartPress}>
+      <TouchableOpacity
+        style={styles.topRightIcon}
+        activeOpacity={0.8}
+        onPress={handleHeartPress}
+        accessibilityRole="button"
+        accessibilityLabel={hearted ? 'Verwijder uit favorieten' : 'Markeer als favoriet'}
+        accessibilityState={{ selected: hearted }}
+      >
         <Animated.View style={{ transform: [{ scale: heartScale }] }}>
           {hearted ? (
-            <HeartTrueIconSvg width={56} height={56} />
+            <HeartTrueIconSvg width={56} height={56} accessible={false} />
           ) : (
-            <HeartIconSvg width={56} height={56} />
+            <HeartIconSvg width={56} height={56} accessible={false} />
           )}
         </Animated.View>
       </TouchableOpacity>
@@ -298,23 +305,36 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         </View>
         <View style={styles.actionColumn}>
           <View style={styles.likeRow}>
-            <TouchableOpacity activeOpacity={0.8} onPress={handleLikePress} style={styles.likeButton}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleLikePress}
+              style={styles.likeButton}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? 'Vind ik leuk verwijderen' : 'Vind ik leuk'}
+              accessibilityState={{ selected: liked }}
+            >
               <Animated.View
                 style={{
                   transform: [{ scale: likeScale }, { translateY: likeTranslateY }],
                 }}
               >
                 {liked ? (
-                  <LikedIconSvg width={56} height={56} />
+                  <LikedIconSvg width={56} height={56} accessible={false} />
                 ) : (
-                  <NonLikedIconSvg width={56} height={56} />
+                  <NonLikedIconSvg width={56} height={56} accessible={false} />
                 )}
               </Animated.View>
             </TouchableOpacity>
             <Text style={styles.likeCount}>{likeCount}</Text>
           </View>
-          <TouchableOpacity style={styles.chatButton} activeOpacity={0.8} onPress={handleChatPress}>
-            <ChatIconHomepageSvg width={52} height={52} />
+          <TouchableOpacity
+            style={styles.chatButton}
+            activeOpacity={0.8}
+            onPress={handleChatPress}
+            accessibilityRole="button"
+            accessibilityLabel="Chat openen"
+          >
+            <ChatIconHomepageSvg width={52} height={52} accessible={false} />
           </TouchableOpacity>
         </View>
       </View>

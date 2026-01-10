@@ -117,15 +117,35 @@ export default function HomePage() {
         <AppHeader
           title="Ontdek het netwerk"
           leading={
-            <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/search')}>
-              <SearchIconSvg width={26} height={26} />
+            <TouchableOpacity
+              style={styles.headerIcon}
+              activeOpacity={0.85}
+              onPress={() => router.push('/search')}
+              accessibilityRole="button"
+              accessibilityLabel="Zoeken"
+            >
+              <SearchIconSvg width={26} height={26} accessible={false} />
             </TouchableOpacity>
           }
           actions={[
-            <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
-              <FilterIconSvg width={26} height={26} />
+            <TouchableOpacity
+              key="filter"
+              style={styles.headerIcon}
+              activeOpacity={0.85}
+              onPress={() => router.push('/filters')}
+              accessibilityRole="button"
+              accessibilityLabel="Filters"
+            >
+              <FilterIconSvg width={26} height={26} accessible={false} />
             </TouchableOpacity>,
-            <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+            <TouchableOpacity
+              key="logout"
+              style={styles.logoutIcon}
+              activeOpacity={0.85}
+              onPress={handleLogout}
+              accessibilityRole="button"
+              accessibilityLabel="Uitloggen"
+            >
               <Text style={styles.logoutText}>Uit</Text>
             </TouchableOpacity>,
           ]}
@@ -144,25 +164,50 @@ export default function HomePage() {
         <AppHeader
           title="Ontdek het netwerk"
           leading={
-            <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/search')}>
-              <SearchIconSvg width={26} height={26} />
+            <TouchableOpacity
+              style={styles.headerIcon}
+              activeOpacity={0.85}
+              onPress={() => router.push('/search')}
+              accessibilityRole="button"
+              accessibilityLabel="Zoeken"
+            >
+              <SearchIconSvg width={26} height={26} accessible={false} />
             </TouchableOpacity>
           }
           actions={[
-            <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
-              <FilterIconSvg width={26} height={26} />
+            <TouchableOpacity
+              key="filter"
+              style={styles.headerIcon}
+              activeOpacity={0.85}
+              onPress={() => router.push('/filters')}
+              accessibilityRole="button"
+              accessibilityLabel="Filters"
+            >
+              <FilterIconSvg width={26} height={26} accessible={false} />
             </TouchableOpacity>,
-            <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+            <TouchableOpacity
+              key="logout"
+              style={styles.logoutIcon}
+              activeOpacity={0.85}
+              onPress={handleLogout}
+              accessibilityRole="button"
+              accessibilityLabel="Uitloggen"
+            >
               <Text style={styles.logoutText}>Uit</Text>
             </TouchableOpacity>,
           ]}
         />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed}>
+          <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed} accessibilityRole="button" accessibilityLabel="Opnieuw proberen">
             <Text style={styles.retryButtonText}>Opnieuw proberen</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutButton} onPress={async () => { await clearAuthToken(); router.replace('/login'); }}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={async () => { await clearAuthToken(); router.replace('/login'); }}
+            accessibilityRole="button"
+            accessibilityLabel="Uitloggen"
+          >
             <Text style={styles.logoutButtonText}>Uitloggen</Text>
           </TouchableOpacity>
         </View>
@@ -175,35 +220,57 @@ export default function HomePage() {
       <AppHeader
         title="Ontdek het netwerk"
         leading={
-          <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/search')}>
-            <SearchIconSvg width={26} height={26} />
+          <TouchableOpacity
+            style={styles.headerIcon}
+            activeOpacity={0.85}
+            onPress={() => router.push('/search')}
+            accessibilityRole="button"
+            accessibilityLabel="Zoeken"
+          >
+            <SearchIconSvg width={26} height={26} accessible={false} />
           </TouchableOpacity>
         }
         actions={[
-          <TouchableOpacity key="filter" style={styles.headerIcon} activeOpacity={0.85} onPress={() => router.push('/filters')}>
-            <FilterIconSvg width={26} height={26} />
+          <TouchableOpacity
+            key="filter"
+            style={styles.headerIcon}
+            activeOpacity={0.85}
+            onPress={() => router.push('/filters')}
+            accessibilityRole="button"
+            accessibilityLabel="Filters"
+          >
+            <FilterIconSvg width={26} height={26} accessible={false} />
           </TouchableOpacity>,
-          <TouchableOpacity key="logout" style={styles.logoutIcon} activeOpacity={0.85} onPress={handleLogout}>
+          <TouchableOpacity
+            key="logout"
+            style={styles.logoutIcon}
+            activeOpacity={0.85}
+            onPress={handleLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Uitloggen"
+          >
             <Text style={styles.logoutText}>Uit</Text>
           </TouchableOpacity>,
         ]}
       />
       <View style={styles.content}>
         <View style={styles.hintHitbox} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>
-          {showScrollHint && (
-            <TouchableOpacity
-              style={styles.hintOverlay}
-              activeOpacity={0.85}
-              onPress={() => {
-                setShowScrollHint(false);
-                setHomeHintSeen();
-              }}
-            >
-              <View style={styles.hintContent}>
-                <Text style={styles.hintText}>Swipe omhoog om nieuwe video's te ontdekken</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+            {showScrollHint && (
+              <TouchableOpacity
+                style={styles.hintOverlay}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setShowScrollHint(false);
+                  setHomeHintSeen();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Hint sluiten"
+              >
+                <View style={styles.hintContent}>
+                  <Text style={styles.hintText}>Swipe omhoog om nieuwe video's te ontdekken</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           <FlatList
             ref={flatListRef}
             data={videos}
@@ -234,7 +301,7 @@ export default function HomePage() {
                   Nieuwe video's kunnen enkele minuten duren om te verwerken.
                   Trek omlaag om te verversen.
                 </Text>
-                <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed}>
+                <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed} accessibilityRole="button" accessibilityLabel="Opnieuw laden">
                   <Text style={styles.retryButtonText}>Opnieuw laden</Text>
                 </TouchableOpacity>
               </View>

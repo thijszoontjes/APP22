@@ -145,22 +145,27 @@ export default function ProfilePage() {
   );
 
   // Load own videos from API
-  useEffect(() => {
-    const loadVideos = async () => {
-      setVideosLoading(true);
-      try {
-        const data = await getMyVideos();
-        setApiVideos(data.items);
-        console.log('[Profile] Loaded', data.items.length, 'videos from API');
-      } catch (err: any) {
-        console.error('[Profile] Failed to load videos:', err);
-        setApiVideos([]);
-      } finally {
-        setVideosLoading(false);
-      }
-    };
-    loadVideos();
+  const loadVideos = useCallback(async () => {
+    setVideosLoading(true);
+    try {
+      const data = await getMyVideos();
+      setApiVideos(data.items);
+      console.log('[Profile] Loaded', data.items.length, 'videos from API');
+    } catch (err: any) {
+      console.error('[Profile] Failed to load videos:', err);
+      setApiVideos([]);
+    } finally {
+      setVideosLoading(false);
+    }
   }, []);
+
+  // Reload videos when screen comes into focus (e.g., after upload)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[Profile] Screen focused, loading videos...');
+      loadVideos();
+    }, [loadVideos])
+  );
 
   const totalVideos = apiVideos.length;
 

@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { getStoredToken } from '@/hooks/authStorage';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { registerForPushNotificationsAsync } from '@/hooks/usePushNotifications';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -17,11 +18,22 @@ export default function RootLayout() {
   const [initialRoute, setInitialRoute] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const restoreSession = async () => {
       const token = await getStoredToken();
-      setInitialRoute(token ? '(tabs)' : 'login');
+      if (!cancelled) {
+        setInitialRoute(token ? '(tabs)' : 'login');
+      }
+      if (token) {
+        registerForPushNotificationsAsync().catch((err) => {
+          console.warn('[Push] Registratie mislukt:', err?.message || err);
+        });
+      }
     };
     restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!initialRoute) {

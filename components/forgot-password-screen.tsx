@@ -99,6 +99,7 @@ export default function WachtwoordVergetenScreen() {
             source={require('@/assets/images/login-header.png')}
             style={styles.heroImage}
             resizeMode="cover"
+            accessible={false}
           />
         </View>
 
@@ -119,6 +120,7 @@ export default function WachtwoordVergetenScreen() {
               editable={!loading && !success}
               placeholder="voorbeeld@email.com"
               placeholderTextColor="#999"
+              accessibilityLabel="E-mailadres"
             />
           </View>
 
@@ -145,6 +147,8 @@ export default function WachtwoordVergetenScreen() {
                         params: { token: devToken }
                       });
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Test reset wachtwoord"
                   >
                     <Text style={styles.devButtonText}>
                       🔧 Test Reset Password (Dev Only)
@@ -161,6 +165,8 @@ export default function WachtwoordVergetenScreen() {
               style={[styles.ctaButton, loading && styles.ctaButtonDisabled]} 
               onPress={handleSendEmail}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Stuur resetmail"
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -170,7 +176,11 @@ export default function WachtwoordVergetenScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity onPress={() => router.push('/login')}>
+          <TouchableOpacity
+            onPress={() => router.push('/login')}
+            accessibilityRole="button"
+            accessibilityLabel="Terug naar inloggen"
+          >
             <Text style={styles.backLink}>Terug naar inloggen</Text>
           </TouchableOpacity>
         </View>

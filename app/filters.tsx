@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityActionEvent, LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 const DEFAULT_DISTANCE = 25;
@@ -52,6 +52,7 @@ export default function FiltersPage() {
 
   const SLIDER_MIN = 0;
   const SLIDER_MAX = 120;
+  const SLIDER_STEP = 5;
 
   useEffect(() => {
     navigation?.setOptions?.({ gestureEnabled: false });
@@ -274,6 +275,19 @@ export default function FiltersPage() {
     updateValueFromX(e.nativeEvent.locationX);
   };
 
+  const handleSliderAccessibility = (event: AccessibilityActionEvent) => {
+    const action = event.nativeEvent.actionName;
+    setSliderValue((prev) => {
+      if (action === 'increment') {
+        return Math.min(SLIDER_MAX, prev + SLIDER_STEP);
+      }
+      if (action === 'decrement') {
+        return Math.max(SLIDER_MIN, prev - SLIDER_STEP);
+      }
+      return prev;
+    });
+  };
+
   const handleSave = async () => {
     setErrorMessage('');
     setStatusMessage('');
@@ -321,8 +335,14 @@ export default function FiltersPage() {
         title="Filters aanpassen"
         backgroundColor="#F6F6F6"
         leading={
-          <TouchableOpacity style={styles.backCircle} activeOpacity={0.8} onPress={() => router.replace('/(tabs)')}>
-            <ArrowBackSvg width={22} height={22} />
+          <TouchableOpacity
+            style={styles.backCircle}
+            activeOpacity={0.8}
+            onPress={() => router.replace('/(tabs)')}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={22} height={22} accessible={false} />
           </TouchableOpacity>
         }
       />
@@ -348,16 +368,33 @@ export default function FiltersPage() {
           <View
             style={styles.sliderTrack}
             onLayout={handleTrackLayout}
-            {...panResponder.panHandlers}>
+            {...panResponder.panHandlers}
+            accessibilityRole="adjustable"
+            accessibilityLabel="Maximumafstand"
+            accessibilityValue={{
+              min: SLIDER_MIN,
+              max: SLIDER_MAX,
+              now: sliderValue,
+              text: `${sliderValue} kilometer`,
+            }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={handleSliderAccessibility}
+          >
             <View style={styles.sliderRail} />
             <View style={[styles.sliderProgress, { width: progressWidth }]} />
-            <View style={[styles.sliderThumb, { transform: [{ translateX: thumbTranslate }] }]} />
+            <View style={[styles.sliderThumb, { transform: [{ translateX: thumbTranslate }] }]} accessible={false} />
           </View>
         </View>
         {locationStatus !== 'granted' && (
           <View style={styles.locationNotice}>
             <Text style={styles.locationNoticeText}>Sta locatie toe zodat we de afstandsfilter kunnen toepassen.</Text>
-            <TouchableOpacity style={styles.locationButton} activeOpacity={0.85} onPress={requestLocationPermission}>
+            <TouchableOpacity
+              style={styles.locationButton}
+              activeOpacity={0.85}
+              onPress={requestLocationPermission}
+              accessibilityRole="button"
+              accessibilityLabel="Sta locatie toe"
+            >
               <Text style={styles.locationButtonText}>Sta locatie toe</Text>
             </TouchableOpacity>
           </View>
@@ -373,7 +410,15 @@ export default function FiltersPage() {
                   prev.includes(cat.key) ? prev.filter(c => c !== cat.key) : [...prev, cat.key],
                 );
               return (
-                <TouchableOpacity key={cat.key} activeOpacity={0.85} onPress={toggle} style={[styles.pill, active && styles.pillActive]}>
+                <TouchableOpacity
+                  key={cat.key}
+                  activeOpacity={0.85}
+                  onPress={toggle}
+                  style={[styles.pill, active && styles.pillActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={cat.label}
+                  accessibilityState={{ selected: active }}
+                >
                   <Text style={[styles.pillText, active && styles.pillTextActive]}>{cat.label}</Text>
                 </TouchableOpacity>
               );
@@ -386,9 +431,11 @@ export default function FiltersPage() {
             activeOpacity={0.85}
             style={[styles.saveButton, (saving || loadingFilters) && { opacity: 0.6 }]}
             onPress={handleSave}
-            disabled={saving || loadingFilters}>
+            disabled={saving || loadingFilters}
+            accessibilityRole="button"
+            accessibilityLabel="Filters opslaan">
             <Text style={styles.saveButtonText}>{saving ? 'Opslaan...' : 'Opslaan'}</Text>
-            <SaveIconSvg width={18} height={18} />
+            <SaveIconSvg width={18} height={18} accessible={false} />
           </TouchableOpacity>
         </View>
       </ScrollView>
