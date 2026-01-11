@@ -69,25 +69,20 @@ export default function SearchScreen() {
   };
 
   const handleProfilePress = (user: UserModel) => {
-    if (!user?.id) {
-      alert('Kan profiel niet openen: geen gebruikers-ID');
+    if (!user?.email) {
+      alert('Kan bericht niet versturen: geen email adres');
       return;
     }
     
-    const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Gebruiker ${user.id}`;
-    const params: Record<string, string> = {
-      userId: String(user.id),
-      userName: userName,
-    };
+    const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Gebruiker';
 
-    if (user.email) {
-      params.userEmail = user.email;
-    }
-
-    // Navigeer naar DM scherm
+    // Navigeer naar DM scherm met email
     router.push({
       pathname: '/dm',
-      params,
+      params: {
+        userEmail: user.email,
+        userName: userName,
+      },
     });
   };
 

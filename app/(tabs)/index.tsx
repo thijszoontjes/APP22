@@ -2,17 +2,17 @@ import FilterIconSvg from '@/assets/images/filter-icon.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
 import AppHeader from '@/components/app-header';
 import VideoFeedItem from '@/components/video-feed-item';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewToken,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewToken,
 } from 'react-native';
 
 import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
@@ -39,6 +39,13 @@ export default function HomePage() {
     };
     loadHintState();
   }, []);
+
+  // Reload video feed when screen is focused (e.g., after logout/login)
+  useFocusEffect(
+    useCallback(() => {
+      loadVideoFeed();
+    }, [])
+  );
 
   useEffect(() => {
     // Valideer sessie bij het laden van de pagina

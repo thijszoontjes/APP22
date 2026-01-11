@@ -2,7 +2,8 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system/legacy";
 import { BASE_URLS, VIDEO_BASE_URLS } from "../constants/api";
 import { getLocalUriByUploadedVideoId } from "../constants/pitch-store";
-import { clearAuthToken, getAuthTokens, saveAuthTokens } from "./authStorage";
+import { clearAuthToken, getAuthTokens, getFavoritedVideos, getLikedVideos, saveAuthTokens } from "./authStorage";
+import { getVideoStats } from "./useCommunityApi";
 
 export interface StreamVariant {
   url: string;
@@ -34,6 +35,7 @@ export interface FeedItem {
   urlExpiresIn?: number;
   liked: boolean;
   likeCount: number;
+  favorited?: boolean;
   owner?: VideoOwner;
   userId?: number; // ID van de user die de video uploaded heeft
   ownerId?: number; // Alternative field voor owner ID
@@ -372,6 +374,9 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     // Enrich with signed URLs - but keep all videos even if enrichment fails
     await enrichItemsWithSignedUrls(normalized.items);
     
+    // Enrich with community stats (likes, like status)
+    await enrichWithCommunityStats(normalized.items);
+    
     // Enrich with displayName from JWT token for user's own videos
     await enrichWithDisplayName(normalized.items);
     
@@ -574,6 +579,54 @@ const attachLocalUris = (items: FeedItem[]) => {
     if (local) {
       item.localUri = local;
     }
+  }
+};
+
+// Enrich videos with community stats (likes, like status) from Community Service
+const enrichWithCommunityStats = async (items: FeedItem[]) => {
+  try {
+    console.log(`[VideoAPI] Enriching ${items.length} videos with community stats...`);
+    
+    // Load liked and favorited videos from local storage
+    const likedVideos = await getLikedVideos();
+    const favoritedVideos = await getFavoritedVideos();
+    console.log(`[VideoAPI] Loaded ${likedVideos.size} liked and ${favoritedVideos.size} favorited videos`);
+    
+    // Fetch stats for each video in parallel with concurrency limit
+    const batchSize = 5;
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      
+      await Promise.all(
+        batch.map(async (item) => {
+          try {
+            const videoIdStr = String(item.id);
+            console.log(`[VideoAPI] Fetching stats for video ${videoIdStr}...`);
+            
+            // Get stats from backend
+            const stats = await getVideoStats(videoIdStr);
+            
+            // Get like/favorite status from local storage
+            const isLiked = likedVideos.has(videoIdStr);
+            const isFavorited = favoritedVideos.has(videoIdStr);
+            
+            // Update the item with community data
+            item.liked = isLiked;
+            item.likeCount = stats?.likes_count || 0;
+            item.favorited = isFavorited;
+            
+            console.log(`[VideoAPI] Video ${videoIdStr}: liked=${isLiked}, favorited=${isFavorited}, likeCount=${item.likeCount}`);
+          } catch (err: any) {
+            console.warn(`[VideoAPI] Could not fetch community stats for video ${item.id}:`, err?.message);
+            // Don't fail the entire feed if one video fails
+          }
+        })
+      );
+    }
+    
+    console.log(`[VideoAPI] ✓ Community stats enrichment complete`);
+  } catch (err) {
+    console.warn('[VideoAPI] Could not enrich videos with community stats:', err);
   }
 };
 
