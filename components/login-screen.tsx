@@ -75,6 +75,7 @@ export default function LoginScreen() {
             source={require('@/assets/images/login-header.png')}
             style={styles.bgImage}
             resizeMode="cover"
+            accessible={false}
           />
         </View>
         <View style={styles.formSection}>
@@ -87,6 +88,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
+              accessibilityLabel="E-mailadres"
             />
           </View>
           <Text style={styles.label}>Wachtwoord</Text>
@@ -96,32 +98,41 @@ export default function LoginScreen() {
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              accessibilityLabel="Wachtwoord"
             />
-            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword((prev) => !prev)}>
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Verberg wachtwoord' : 'Toon wachtwoord'}
+            >
               <Image
                 source={require('@/assets/images/eye.png')}
                 style={styles.eyeImg}
                 resizeMode="contain"
+                accessible={false}
               />
             </TouchableOpacity>
           </View>
           {!!validationError && <Text style={styles.errorText}>{validationError}</Text>}
           {!!apiError && <Text style={styles.errorText}>{apiError}</Text>}
           <Link href="/forgot-password" asChild>
-            <TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Wachtwoord vergeten">
               <Text style={styles.forgot}>Wachtwoord vergeten?</Text>
             </TouchableOpacity>
           </Link>
           <TouchableOpacity
             style={[styles.loginBtn, loading && { opacity: 0.75 }]}
             disabled={loading}
-            onPress={handleLogin}>
+            onPress={handleLogin}
+            accessibilityRole="button"
+            accessibilityLabel="Inloggen">
             <Text style={styles.loginBtnText}>{loading ? 'Inloggen...' : 'Inloggen'}</Text>
           </TouchableOpacity>
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Nog geen onderdeel van het netwerk? </Text>
             <Link href="/register" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Registreer">
                 <Text style={styles.registerLink}>Registreer hier</Text>
               </TouchableOpacity>
             </Link>

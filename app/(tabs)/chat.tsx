@@ -272,9 +272,17 @@ export default function ChatPage() {
               placeholderTextColor="#8a8a8a"
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="E-mailadres ontvanger"
+              accessibilityHint="Vul het e-mailadres in om een chat te starten"
             />
           </View>
-          <TouchableOpacity style={styles.manualButton} onPress={handleStartManual} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.manualButton}
+            onPress={handleStartManual}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open chat"
+          >
             <Text style={styles.manualButtonText}>Open chat</Text>
           </TouchableOpacity>
           <Text style={styles.infoText}>Gebruik het e-mailadres van de ontvanger om een chat te starten.</Text>
@@ -292,7 +300,12 @@ export default function ChatPage() {
           {error ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadChats}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={loadChats}
+                accessibilityRole="button"
+                accessibilityLabel="Opnieuw laden"
+              >
                 <Text style={styles.retryText}>Opnieuw laden</Text>
               </TouchableOpacity>
             </View>
@@ -308,15 +321,20 @@ export default function ChatPage() {
               <View style={styles.chatRow}>
                 <View style={styles.avatarRing}>
                   {chat.avatar ? (
-                    <Image source={chat.avatar} style={styles.avatarImage} />
+                    <Image source={chat.avatar} style={styles.avatarImage} accessible={false} />
                   ) : (
-                    <View style={styles.avatarFallback}>
+                    <View style={styles.avatarFallback} accessible={false}>
                       <Text style={styles.avatarInitials}>{chat.initials}</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.textBlock}>
-                  <TouchableOpacity onPress={() => handleOpenDM(chat)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={() => handleOpenDM(chat)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open chat met ${chat.name}`}
+                  >
                     <Text style={styles.name}>{chat.name}</Text>
                   </TouchableOpacity>
                   <Text style={styles.message} numberOfLines={1}>

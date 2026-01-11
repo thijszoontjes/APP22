@@ -65,6 +65,9 @@ export default function TabLayout() {
               }}
               activeOpacity={isActive ? 1 : 0.7}
               disabled={isActive}
+              accessibilityRole="tab"
+              accessibilityLabel={item.name}
+              accessibilityState={{ selected: isActive }}
             >
               {isActive ? (
                 <>
@@ -72,7 +75,7 @@ export default function TabLayout() {
                   <View style={{ width: 32, height: 2, backgroundColor: ORANGE, borderRadius: 1, marginTop: 2, alignSelf: 'center' }} />
                 </>
               ) : (
-                <Image source={item.icon} style={{ width: 48, height: 48, marginBottom: 2, resizeMode: 'contain' }} />
+                <Image source={item.icon} style={{ width: 48, height: 48, marginBottom: 2, resizeMode: 'contain' }} accessible={false} />
               )}
             </TouchableOpacity>
           );

@@ -51,8 +51,14 @@ export default function ChatDetail() {
       <AppHeader
         title={userName}
         leading={
-          <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.backWrap}>
-            <ArrowBackSvg width={24} height={24} />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.back()}
+            style={styles.backWrap}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={24} height={24} accessible={false} />
           </TouchableOpacity>
         }
       />
@@ -78,7 +84,7 @@ export default function ChatDetail() {
       </ScrollView>
 
       <View style={styles.inputBar}>
-        <View style={styles.plusCircle}>
+        <View style={styles.plusCircle} accessible={false}>
           <Text style={styles.plusText}>+</Text>
         </View>
         <TextInput
@@ -88,9 +94,16 @@ export default function ChatDetail() {
           placeholder="Bericht...."
           placeholderTextColor="#A0A0A0"
           multiline
+          accessibilityLabel="Bericht"
         />
-        <TouchableOpacity activeOpacity={0.85} onPress={handleSend} style={styles.sendButton}>
-          <SendIconSvg width={18} height={18} />
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={handleSend}
+          style={styles.sendButton}
+          accessibilityRole="button"
+          accessibilityLabel="Verstuur bericht"
+        >
+          <SendIconSvg width={18} height={18} accessible={false} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
