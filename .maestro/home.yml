@@ -1,0 +1,14 @@
+appId: com.anonymous.APP22
+---
+# E2E Test: Home Screen Navigation
+# Tests basic app launch and home screen elements
+
+- launchApp
+- assertVisible: "Ontdek*" # Home tab text
+- assertVisible: "Profiel" # Profile tab text
+
+# Test navigation to different tabs
+- tapOn: "Profiel"
+- assertVisible: "Instellingen" # Settings button should be visible on profile
+
+- tapOn: "Ontdek*" # Go back to home/discover tab

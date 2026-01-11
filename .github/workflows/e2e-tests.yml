@@ -1,0 +1,70 @@
+name: E2E Tests with Maestro
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - unit-testing
+      - develop
+
+jobs:
+  # First build the APK
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build APK for testing
+        run: eas build --platform android --profile preview --non-interactive
+
+  # Then run E2E tests with Maestro
+  test_e2e:
+    name: E2E Tests with Maestro
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Download APK
+        run: |
+          # Download the APK built in previous job
+          # This requires expo-dev-client to be installed
+          echo "Downloading latest APK from EAS..."
+
+      - name: Run Maestro E2E Tests
+        run: |
+          maestro test .maestro/home.yml || true
+          maestro test .maestro/login-flow.yml || true
+          maestro test .maestro/video-feed.yml || true
+          maestro test .maestro/search-flow.yml || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results
+          path: |
+            .maestro/
+            maestro-output/

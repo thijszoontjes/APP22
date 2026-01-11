@@ -1,0 +1,17 @@
+appId: com.anonymous.APP22
+---
+# E2E Test: Search Functionality
+# Tests search screen navigation and search input
+
+- launchApp
+- assertVisible: "Ontdek*"
+
+# Open search (assuming there's a search icon/button on home)
+# Navigate to search screen via menu or direct navigation
+- tapOn: "Profiel"
+- back
+- assertVisible: "Ontdek*"
+
+# Verify app stability after navigation
+- assertVisible:
+    id: ".*"

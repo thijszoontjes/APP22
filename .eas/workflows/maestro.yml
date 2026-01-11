@@ -1,0 +1,19 @@
+build:
+  name: Run E2E tests with Maestro
+  steps:
+    - eas/checkout
+    - eas/install_dependencies
+    - eas/prebuild:
+        platform: android
+    - run:
+        name: Run Maestro E2E tests
+        command: |
+          # Install Maestro
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          export PATH="$PATH:$HOME/.maestro/bin"
+          
+          # Run tests
+          maestro test .maestro/home.yml
+          maestro test .maestro/login-flow.yml
+          maestro test .maestro/video-feed.yml
+          maestro test .maestro/search-flow.yml
