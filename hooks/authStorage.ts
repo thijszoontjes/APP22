@@ -75,6 +75,14 @@ export const setHomeHintSeen = async () => {
   }
 };
 
+export const resetHomeHintSeen = async () => {
+  try {
+    await SecureStore.deleteItemAsync(HOME_HINT_KEY);
+  } catch {
+    // best-effort; hint blijft mogelijk verborgen
+  }
+};
+
 export const syncChatOwner = async (email: string) => {
   const normalized = (email || "").trim().toLowerCase();
   if (!normalized) return;

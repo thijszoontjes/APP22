@@ -16,13 +16,18 @@ const LEGACY_DEFAULT_DISTANCE = 50;
 const LEGACY_DEFAULT_CATEGORIES = new Set(['technology', 'marketing', 'media']);
 
 const CATEGORY_OPTIONS = [
-  { key: 'technology', label: 'Technologie' },
-  { key: 'ict', label: 'ICT' },
-  { key: 'investing', label: 'Investeren' },
-  { key: 'marketing', label: 'Marketing' },
-  { key: 'media', label: 'Media' },
-  { key: 'production', label: 'Productie' },
-  { key: 'education', label: 'Educatie' },
+  { key: 'Gezondheidszorg en Welzijn', label: 'Gezondheidszorg en Welzijn' },
+  { key: 'Handel en Dienstverlening', label: 'Handel en Dienstverlening' },
+  { key: 'ICT', label: 'ICT' },
+  { key: 'Justitie, Veiligheid en Openbaar Bestuur', label: 'Justitie, Veiligheid en Openbaar Bestuur' },
+  { key: 'Milieu en Agrarische Sector', label: 'Milieu en Agrarische Sector' },
+  { key: 'Media en Communicatie', label: 'Media en Communicatie' },
+  { key: 'Onderwijs, Cultuur en Wetenschap', label: 'Onderwijs, Cultuur en Wetenschap' },
+  { key: 'Techniek, Productie en Bouw', label: 'Techniek, Productie en Bouw' },
+  { key: 'Toerisme, Recreatie en Horeca', label: 'Toerisme, Recreatie en Horeca' },
+  { key: 'Transport en Logistiek', label: 'Transport en Logistiek' },
+  { key: 'Behoefte aan Investering', label: 'Behoefte aan Investering' },
+  { key: 'Interesse om te Investeren', label: 'Interesse om te Investeren' },
 ];
 
 const CATEGORY_KEY_BY_LABEL = CATEGORY_OPTIONS.reduce<Record<string, string>>((acc, opt) => {

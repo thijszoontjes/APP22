@@ -1,4 +1,4 @@
-import { saveAuthTokens, syncChatOwner, syncFilterOwner } from '@/hooks/authStorage';
+import { resetHomeHintSeen, saveAuthTokens, syncChatOwner, syncFilterOwner } from '@/hooks/authStorage';
 import { loginApi, registerApi } from '@/hooks/useAuthApi';
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -104,6 +104,7 @@ export default function RegisterScreen() {
           const token = await loginApi({ email: normalizedEmail, password: normalizedPassword });
           if (token?.access_token && token?.refresh_token) {
             await saveAuthTokens(token.access_token, token.refresh_token);
+            await resetHomeHintSeen();
             await syncChatOwner(normalizedEmail);
             await syncFilterOwner(normalizedEmail);
             tokenReceived = true;
