@@ -314,7 +314,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
         style={styles.video}
         player={player}
         nativeControls={false}
-        allowsFullscreen={false}
+        fullscreenOptions={{ enabled: false }}
         allowsPictureInPicture={false}
         contentFit="cover"
         onFirstFrameRender={() => setHasFirstFrame(true)}

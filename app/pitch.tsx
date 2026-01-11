@@ -154,11 +154,16 @@ export default function PitchRecorder() {
       <View style={styles.permissionContainer}>
         <SafeAreaView style={styles.permissionInner}>
           <View style={styles.permissionHeader}>
-            <Pressable onPress={() => router.back()} style={styles.backCircle} accessibilityRole="button">
-              <ArrowBackSvg width={18} height={18} />
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.backCircle}
+              accessibilityRole="button"
+              accessibilityLabel="Terug"
+            >
+              <ArrowBackSvg width={18} height={18} accessible={false} />
             </Pressable>
             <Text style={styles.permissionTitle}>Toestemmingen</Text>
-            <View style={styles.backCircle} />
+            <View style={styles.backCircle} accessible={false} />
           </View>
           <View style={styles.permissionBody}>
             <Text style={styles.intro}>
@@ -173,6 +178,9 @@ export default function PitchRecorder() {
                 style={styles.permissionButton}
                 onPress={requestBoth}
                 disabled={requesting}
+                accessibilityRole="button"
+                accessibilityLabel="Sta camera en microfoon toe"
+                accessibilityState={{ disabled: requesting }}
               >
                 <Text style={styles.permissionText}>Sta camera en microfoon toe</Text>
               </TouchableOpacity>
@@ -193,6 +201,7 @@ export default function PitchRecorder() {
         facing={facing}
         mode="video"
         enableTorch={torchEnabled && facing === 'back'}
+        accessible={false}
       />
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
@@ -205,8 +214,9 @@ export default function PitchRecorder() {
             }}
             style={styles.iconButton}
             accessibilityRole="button"
+            accessibilityLabel="Terug"
           >
-            <ArrowBackSvg width={20} height={20} />
+            <ArrowBackSvg width={20} height={20} accessible={false} />
           </Pressable>
           <View style={styles.timerBlock}>
             <View style={styles.timerBadge}>
@@ -218,8 +228,10 @@ export default function PitchRecorder() {
           <Pressable
             onPress={() => setFacing(prev => (prev === 'back' ? 'front' : 'back'))}
             style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel="Camera wisselen"
           >
-            <CameraFlipSvg width={22} height={22} color="#1A2233" />
+            <CameraFlipSvg width={22} height={22} color="#1A2233" accessible={false} />
           </Pressable>
         </View>
 
@@ -228,6 +240,9 @@ export default function PitchRecorder() {
             activeOpacity={0.9}
             style={[styles.recordButton, isRecording && styles.recordButtonActive]}
             onPress={isRecording ? stopRecording : startRecording}
+            accessibilityRole="button"
+            accessibilityLabel={isRecording ? 'Pitch opslaan' : 'Pitch opnemen'}
+            accessibilityState={{ selected: isRecording }}
           >
             <Text style={styles.recordButtonText}>{isRecording ? 'Pitch opslaan' : 'Pitch opnemen'}</Text>
           </TouchableOpacity>
@@ -240,11 +255,14 @@ export default function PitchRecorder() {
             ]}
             disabled={facing === 'front'}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={torchEnabled ? 'Zaklamp uit' : 'Zaklamp aan'}
+            accessibilityState={{ selected: torchEnabled, disabled: facing === 'front' }}
           >
             {torchEnabled ? (
-              <FlashSvg width={32} height={32} color={ORANGE} />
+              <FlashSvg width={32} height={32} color={ORANGE} accessible={false} />
             ) : (
-              <FlashOffSvg width={32} height={32} color="#fff" />
+              <FlashOffSvg width={32} height={32} color="#fff" accessible={false} />
             )}
           </Pressable>
         </View>

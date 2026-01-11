@@ -40,7 +40,9 @@ function VideoThumbnail({ uri, onPress, isVisible }: { uri: string; onPress: () 
     <TouchableOpacity 
       style={styles.videoThumbnailContainer}
       activeOpacity={0.8}
-      onPress={onPress}>
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Video openen">
       {isVisible && playableUri ? (
         <View style={styles.videoThumbnailWrapper}>
           <VideoView
@@ -236,8 +238,14 @@ export default function ProfilePage() {
       <AppHeader
         title="Profiel"
         actions={[
-          <TouchableOpacity key="settings" style={styles.optionCircle} onPress={() => router.push('/settings')}>
-            <SettingIconSvg width={22} height={22} />
+          <TouchableOpacity
+            key="settings"
+            style={styles.optionCircle}
+            onPress={() => router.push('/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Instellingen openen"
+          >
+            <SettingIconSvg width={22} height={22} accessible={false} />
           </TouchableOpacity>,
         ]}
       />
@@ -247,9 +255,10 @@ export default function ProfilePage() {
             source={{ uri: profilePhotoUrl }} 
             style={styles.profilePicCircle}
             resizeMode="cover"
+            accessibilityLabel="Profielfoto"
           />
         ) : (
-          <View style={styles.profilePicCircle} />
+          <View style={styles.profilePicCircle} accessible={false} />
         )}
       </View>
       <View style={styles.profileInfoContainer}>
@@ -273,7 +282,13 @@ export default function ProfilePage() {
         )}
       </View>
       <View style={styles.pitchRow}>
-        <TouchableOpacity style={styles.pitchButton} activeOpacity={0.9} onPress={() => router.push('/pitch')}>
+        <TouchableOpacity
+          style={styles.pitchButton}
+          activeOpacity={0.9}
+          onPress={() => router.push('/pitch')}
+          accessibilityRole="button"
+          accessibilityLabel="Pitch opnemen"
+        >
           <Text style={styles.pitchButtonText}>Pitch opnemen</Text>
         </TouchableOpacity>
       </View>
@@ -322,8 +337,10 @@ export default function ProfilePage() {
         <View style={styles.modalContainer}>
           <TouchableOpacity 
             style={styles.closeButton}
-            onPress={() => setSelectedVideoUri(null)}>
-            <Text style={styles.closeButtonText}>✕</Text>
+            onPress={() => setSelectedVideoUri(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Sluit video">
+            <Text style={styles.closeButtonText} accessible={false}>✕</Text>
           </TouchableOpacity>
           {selectedVideoUri && (
             <VideoView

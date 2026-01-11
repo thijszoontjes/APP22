@@ -234,22 +234,32 @@ export default function SettingsPage() {
       <AppHeader 
         title="Instellingen"
         leading={
-          <TouchableOpacity style={styles.backCircle} activeOpacity={0.8} onPress={() => router.back()}>
-            <ArrowBackSvg width={22} height={22} />
+          <TouchableOpacity
+            style={styles.backCircle}
+            activeOpacity={0.8}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Terug"
+          >
+            <ArrowBackSvg width={22} height={22} accessible={false} />
           </TouchableOpacity>
         }
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profielfoto */}
         <View style={styles.profileSection}>
-          <View style={styles.profilePicCircle} />
+          <View style={styles.profilePicCircle} accessible={false} />
           <TouchableOpacity 
             style={styles.editProfileButton} 
             activeOpacity={0.8}
             onPress={handleUploadProfilePhoto}
-            disabled={saving}>
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Profielfoto bewerken"
+            accessibilityState={{ disabled: saving }}
+          >
             <Text style={styles.editProfileButtonText}>Profiel foto bewerken</Text>
-            <EditSvg width={18} height={18} />
+            <EditSvg width={18} height={18} accessible={false} />
           </TouchableOpacity>
         </View>
 
@@ -267,6 +277,7 @@ export default function SettingsPage() {
               placeholderTextColor="#999"
               value={formData.naam}
               onChangeText={(value) => handleInputChange('naam', value)}
+              accessibilityLabel="Naam"
             />
           </View>
 
@@ -280,6 +291,8 @@ export default function SettingsPage() {
               keyboardType="email-address"
               value={formData.email}
               editable={false}
+              accessibilityLabel="E-mail"
+              accessibilityState={{ disabled: true }}
             />
           </View>
 
@@ -293,6 +306,7 @@ export default function SettingsPage() {
               keyboardType="phone-pad"
               value={formData.telefoon}
               onChangeText={(value) => handleInputChange('telefoon', value)}
+              accessibilityLabel="Telefoonnummer"
             />
           </View>
 
@@ -305,6 +319,7 @@ export default function SettingsPage() {
               placeholderTextColor="#999"
               value={formData.functie}
               onChangeText={(value) => handleInputChange('functie', value)}
+              accessibilityLabel="Functie"
             />
           </View>
 
@@ -313,11 +328,15 @@ export default function SettingsPage() {
             <Text style={styles.label}>Sector</Text>
             <TouchableOpacity 
               style={styles.dropdownButton}
-              onPress={() => setShowSectorPicker(true)}>
+              onPress={() => setShowSectorPicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel={formData.sector ? `Sector: ${formData.sector}` : 'Kies een sector'}
+              accessibilityState={{ expanded: showSectorPicker }}
+            >
               <Text style={[styles.dropdownButtonText, formData.sector ? { color: '#1A2233' } : { color: '#999' }]}>
                 {formData.sector || 'Kies een sector'}
               </Text>
-              <Text style={styles.dropdownArrow}>▼</Text>
+              <Text style={styles.dropdownArrow} accessible={false}>▼</Text>
             </TouchableOpacity>
           </View>
 
@@ -333,6 +352,7 @@ export default function SettingsPage() {
               value={formData.biografie}
               onChangeText={(value) => handleInputChange('biografie', value)}
               textAlignVertical="top"
+              accessibilityLabel="Biografie"
             />
           </View>
 
@@ -347,7 +367,11 @@ export default function SettingsPage() {
                     styles.interesseBox,
                     selectedInteresses.includes(interesse) && styles.interesseBoxActive,
                   ]}
-                  onPress={() => handleInteresseToggle(interesse)}>
+                  onPress={() => handleInteresseToggle(interesse)}
+                  accessibilityRole="button"
+                  accessibilityLabel={interesse}
+                  accessibilityState={{ selected: selectedInteresses.includes(interesse) }}
+                >
                   <Text
                     style={[
                       styles.interesseText,
@@ -364,50 +388,53 @@ export default function SettingsPage() {
           <View style={styles.switchesSection}>
             {/* Push Meldingen */}
             <View style={styles.switchItem}>
-              <View style={styles.switchLabelContainer}>
-                <View style={styles.switchIcon}>
-                  <NotificationSvg width={25} height={25} />
+                <View style={styles.switchLabelContainer}>
+                  <View style={styles.switchIcon}>
+                  <NotificationSvg width={25} height={25} accessible={false} />
+                  </View>
+                  <Text style={styles.switchLabel}>Pushmeldingen aan</Text>
                 </View>
-                <Text style={styles.switchLabel}>Pushmeldingen aan</Text>
-              </View>
-              <Switch
-                value={switches.pushMeldingen}
-                onValueChange={() => handleSwitchToggle('pushMeldingen')}
-                trackColor={{ false: '#D0D0D0', true: ORANGE }}
-                thumbColor="#fff"
-              />
+                <Switch
+                  value={switches.pushMeldingen}
+                  onValueChange={() => handleSwitchToggle('pushMeldingen')}
+                  trackColor={{ false: '#D0D0D0', true: ORANGE }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Pushmeldingen aan"
+                />
             </View>
 
             {/* Update Email */}
             <View style={styles.switchItem}>
-              <View style={styles.switchLabelContainer}>
-                <View style={styles.switchIcon}>
-                  <MailSvg width={20} height={20} />
+                <View style={styles.switchLabelContainer}>
+                  <View style={styles.switchIcon}>
+                  <MailSvg width={20} height={20} accessible={false} />
+                  </View>
+                  <Text style={styles.switchLabel}>Stuur update email</Text>
                 </View>
-                <Text style={styles.switchLabel}>Stuur update email</Text>
-              </View>
-              <Switch
-                value={switches.updateEmail}
-                onValueChange={() => handleSwitchToggle('updateEmail')}
-                trackColor={{ false: '#D0D0D0', true: ORANGE }}
-                thumbColor="#fff"
-              />
+                <Switch
+                  value={switches.updateEmail}
+                  onValueChange={() => handleSwitchToggle('updateEmail')}
+                  trackColor={{ false: '#D0D0D0', true: ORANGE }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Stuur update email"
+                />
             </View>
 
             {/* Contact Info Profiel */}
             <View style={styles.switchItem}>
-              <View style={styles.switchLabelContainer}>
-                <View style={styles.switchIcon}>
-                  <PhoneSvg width={20} height={20} />
+                <View style={styles.switchLabelContainer}>
+                  <View style={styles.switchIcon}>
+                  <PhoneSvg width={20} height={20} accessible={false} />
+                  </View>
+                  <Text style={styles.switchLabel}>Contactinfo bij profiel tonen</Text>
                 </View>
-                <Text style={styles.switchLabel}>Contactinfo bij profiel tonen</Text>
-              </View>
-              <Switch
-                value={switches.contactInfoProfiel}
-                onValueChange={() => handleSwitchToggle('contactInfoProfiel')}
-                trackColor={{ false: '#D0D0D0', true: ORANGE }}
-                thumbColor="#fff"
-              />
+                <Switch
+                  value={switches.contactInfoProfiel}
+                  onValueChange={() => handleSwitchToggle('contactInfoProfiel')}
+                  trackColor={{ false: '#D0D0D0', true: ORANGE }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Contactinfo bij profiel tonen"
+                />
             </View>
           </View>
 
@@ -416,7 +443,11 @@ export default function SettingsPage() {
             style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
             activeOpacity={0.85}
             onPress={handleSaveProfile}
-            disabled={saving}>
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Profiel opslaan"
+            accessibilityState={{ disabled: saving }}
+          >
             <Text style={styles.saveButtonText}>{saving ? 'Opslaan...' : 'Opslaan'}</Text>
           </TouchableOpacity>
 
@@ -424,17 +455,33 @@ export default function SettingsPage() {
           <View style={styles.dividerLine} />
 
           {/* Speel onboarding opnieuw af button */}
-          <TouchableOpacity style={styles.onboardingButton} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.onboardingButton}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Speel onboarding opnieuw af"
+          >
             <Text style={styles.onboardingButtonText}>Speel onboarding opnieuw af</Text>
           </TouchableOpacity>
 
           {/* Uitloggen button */}
-          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={handleLogout}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            activeOpacity={0.85}
+            onPress={handleLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Uitloggen"
+          >
             <Text style={styles.logoutButtonText}>Uitloggen</Text>
           </TouchableOpacity>
 
           {/* Verwijder mijn account link */}
-          <TouchableOpacity style={styles.deleteAccountLinkContainer} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.deleteAccountLinkContainer}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Verwijder mijn account"
+          >
             <Text style={styles.deleteAccountLink}>Verwijder mijn account</Text>
           </TouchableOpacity>
         </View>
@@ -450,8 +497,12 @@ export default function SettingsPage() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Kies een sector</Text>
-              <TouchableOpacity onPress={() => setShowSectorPicker(false)}>
-                <Text style={styles.modalCloseButton}>✕</Text>
+              <TouchableOpacity
+                onPress={() => setShowSectorPicker(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Sluit sector-keuze"
+              >
+                <Text style={styles.modalCloseButton} accessible={false}>X</Text>
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalOptions}>
@@ -462,7 +513,15 @@ export default function SettingsPage() {
                     styles.modalOption,
                     formData.sector === sector && styles.modalOptionSelected,
                   ]}
-                  onPress={() => handleSectorSelect(sector)}>
+                  onPress={() => handleSectorSelect(sector)}
+                  accessibilityRole="button"
+                  accessibilityLabel={sector}
+                  accessibilityState={{ selected: formData.sector === sector }}
+                >
+                  accessibilityRole="button"
+                  accessibilityLabel={sector}
+                  accessibilityState={{ selected: formData.sector === sector }}
+                  >
                   <Text
                     style={[
                       styles.modalOptionText,

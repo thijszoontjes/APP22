@@ -313,8 +313,14 @@ export default function PitchPreview() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>Geen pitch gevonden</Text>
-          <TouchableOpacity style={styles.orangeButton} activeOpacity={0.9} onPress={restartRecording}>
-            <OpnieuwIconSvg width={18} height={18} />
+          <TouchableOpacity
+            style={styles.orangeButton}
+            activeOpacity={0.9}
+            onPress={restartRecording}
+            accessibilityRole="button"
+            accessibilityLabel="Opnieuw opnemen"
+          >
+            <OpnieuwIconSvg width={18} height={18} accessible={false} />
             <Text style={styles.orangeText}>Opnieuw opnemen</Text>
           </TouchableOpacity>
         </View>
@@ -329,6 +335,8 @@ export default function PitchPreview() {
           style={styles.video}
           activeOpacity={1}
           onPress={togglePlayback}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Video pauzeren' : 'Video afspelen'}
         >
           <VideoView
             ref={videoRef}
@@ -354,13 +362,25 @@ export default function PitchPreview() {
         )}
 
         <View style={[styles.topBar, { top: Math.max(insets.top + 6, 12) }]}>
-          <TouchableOpacity style={styles.circleButton} activeOpacity={0.85} onPress={isEditing ? handleExitEdit : confirmLeave}>
-            <ArrowBackSvg width={18} height={18} />
+          <TouchableOpacity
+            style={styles.circleButton}
+            activeOpacity={0.85}
+            onPress={isEditing ? handleExitEdit : confirmLeave}
+            accessibilityRole="button"
+            accessibilityLabel={isEditing ? 'Bewerken afsluiten' : 'Terug naar profiel'}
+          >
+            <ArrowBackSvg width={18} height={18} accessible={false} />
           </TouchableOpacity>
           {!isEditing && (
-            <TouchableOpacity style={styles.editPill} activeOpacity={0.85} onPress={handleEdit}>
+            <TouchableOpacity
+              style={styles.editPill}
+              activeOpacity={0.85}
+              onPress={handleEdit}
+              accessibilityRole="button"
+              accessibilityLabel="Bewerk pitch"
+            >
               <Text style={styles.editLabel}>Bewerk</Text>
-              <EditIconSvg width={20} height={20} />
+              <EditIconSvg width={20} height={20} accessible={false} />
             </TouchableOpacity>
           )}
         </View>
@@ -373,6 +393,9 @@ export default function PitchPreview() {
                 style={[styles.editButton, activeEditor === 'light' && styles.editButtonActive]}
                 activeOpacity={0.8}
                 onPress={() => setActiveEditor(activeEditor === 'light' ? null : 'light')}
+                accessibilityRole="button"
+                accessibilityLabel="Licht aanpassen"
+                accessibilityState={{ selected: activeEditor === 'light' }}
               >
                 <Text style={[styles.editButtonText, activeEditor === 'light' && { color: '#FFF' }]}>Licht</Text>
               </TouchableOpacity>
@@ -380,6 +403,9 @@ export default function PitchPreview() {
                 style={[styles.editButton, activeEditor === 'trim' && styles.editButtonActive]}
                 activeOpacity={0.8}
                 onPress={() => setActiveEditor(activeEditor === 'trim' ? null : 'trim')}
+                accessibilityRole="button"
+                accessibilityLabel="Video trimmen"
+                accessibilityState={{ selected: activeEditor === 'trim' }}
               >
                 <Text style={[styles.editButtonText, activeEditor === 'trim' && { color: '#FFF' }]}>Trimmen</Text>
               </TouchableOpacity>
@@ -387,6 +413,9 @@ export default function PitchPreview() {
                 style={[styles.editButton, activeEditor === 'sound' && styles.editButtonActive]}
                 activeOpacity={0.8}
                 onPress={() => setActiveEditor(activeEditor === 'sound' ? null : 'sound')}
+                accessibilityRole="button"
+                accessibilityLabel="Geluid aanpassen"
+                accessibilityState={{ selected: activeEditor === 'sound' }}
               >
                 <Text style={[styles.editButtonText, activeEditor === 'sound' && { color: '#FFF' }]}>Geluid</Text>
               </TouchableOpacity>
@@ -407,6 +436,8 @@ export default function PitchPreview() {
                     minimumTrackTintColor={ORANGE}
                     maximumTrackTintColor="#555"
                     thumbTintColor={ORANGE}
+                    accessibilityLabel="Helderheid"
+                    accessibilityValue={{ min: -100, max: 100, now: lightValue }}
                   />
                   <Text style={styles.sliderValue}>+</Text>
                 </View>
@@ -437,6 +468,8 @@ export default function PitchPreview() {
                     minimumTrackTintColor={ORANGE}
                     maximumTrackTintColor="#DDD"
                     thumbTintColor={ORANGE}
+                    accessibilityLabel="Trim begin"
+                    accessibilityValue={{ min: 0, max: 99, now: selectedStart }}
                   />
                   
                   <Text style={styles.trimLabelSimple}>Einde</Text>
@@ -454,16 +487,28 @@ export default function PitchPreview() {
                     minimumTrackTintColor={ORANGE}
                     maximumTrackTintColor="#DDD"
                     thumbTintColor={ORANGE}
+                    accessibilityLabel="Trim einde"
+                    accessibilityValue={{ min: 1, max: 100, now: selectedEnd }}
                   />
                 </View>
 
                 <View style={styles.trimButtonRow}>
                   {isTrimApplied && (
-                    <TouchableOpacity style={[styles.trimButton, styles.trimButtonRemove]} onPress={handleRemoveTrim}>
+                    <TouchableOpacity
+                      style={[styles.trimButton, styles.trimButtonRemove]}
+                      onPress={handleRemoveTrim}
+                      accessibilityRole="button"
+                      accessibilityLabel="Trim verwijderen"
+                    >
                       <Text style={styles.trimButtonText}>Verwijderen</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity style={[styles.trimButton, styles.trimButtonApply]} onPress={handleApplyTrim}>
+                  <TouchableOpacity
+                    style={[styles.trimButton, styles.trimButtonApply]}
+                    onPress={handleApplyTrim}
+                    accessibilityRole="button"
+                    accessibilityLabel="Trim toepassen"
+                  >
                     <Text style={styles.trimButtonText}>Toepassen</Text>
                   </TouchableOpacity>
                 </View>
@@ -490,6 +535,8 @@ export default function PitchPreview() {
                     minimumTrackTintColor={ORANGE}
                     maximumTrackTintColor="#555"
                     thumbTintColor={ORANGE}
+                    accessibilityLabel="Geluid"
+                    accessibilityValue={{ min: 0, max: 100, now: Math.round(soundValue * 100) }}
                   />
                   <Text style={styles.sliderValue}>🔊</Text>
                 </View>
@@ -498,27 +545,52 @@ export default function PitchPreview() {
             )}
 
             {/* Done Button */}
-            <TouchableOpacity style={styles.doneButton} activeOpacity={0.9} onPress={handleExitEdit}>
+            <TouchableOpacity
+              style={styles.doneButton}
+              activeOpacity={0.9}
+              onPress={handleExitEdit}
+              accessibilityRole="button"
+              accessibilityLabel="Klaar met bewerken"
+            >
               <Text style={styles.doneButtonText}>Klaar</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
-            <TouchableOpacity style={[styles.orangeButton, styles.wideButton]} activeOpacity={0.9} onPress={restartRecording}>
+            <TouchableOpacity
+              style={[styles.orangeButton, styles.wideButton]}
+              activeOpacity={0.9}
+              onPress={restartRecording}
+              accessibilityRole="button"
+              accessibilityLabel="Opnieuw opnemen"
+            >
               <Text style={styles.orangeText}>Opnieuw</Text>
-              <OpnieuwIconSvg width={18} height={18} />
+              <OpnieuwIconSvg width={18} height={18} accessible={false} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.orangeButton, styles.playButton]} activeOpacity={0.9} onPress={togglePlayback}>
-              {isPlaying ? <PauseIconSvg width={16} height={16} /> : <PlayIconSvg width={16} height={16} />}
+            <TouchableOpacity
+              style={[styles.orangeButton, styles.playButton]}
+              activeOpacity={0.9}
+              onPress={togglePlayback}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pauzeer video' : 'Speel video af'}
+            >
+              {isPlaying ? (
+                <PauseIconSvg width={16} height={16} accessible={false} />
+              ) : (
+                <PlayIconSvg width={16} height={16} accessible={false} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.orangeButton, styles.wideButton, isUploading && styles.disabledButton]} 
               activeOpacity={0.9} 
               onPress={handleUpload}
               disabled={isUploading}
+              accessibilityRole="button"
+              accessibilityLabel="Uploaden"
+              accessibilityState={{ disabled: isUploading }}
             >
               <Text style={styles.orangeText}>{isUploading ? 'Uploaden...' : 'Uploaden'}</Text>
-              {!isUploading && <UploadIconSvg width={18} height={18} />}
+              {!isUploading && <UploadIconSvg width={18} height={18} accessible={false} />}
             </TouchableOpacity>
           </View>
         )}
