@@ -106,7 +106,7 @@ export default function SearchScreen() {
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.infoText}>Zoek naar personen op volledige naam (voornaam + achternaam)</Text>
-        <Text style={styles.exampleText}>Voorbeeld: "Jan Jansen" of "Marie de Vries"</Text>
+        <Text style={styles.exampleText}>Voorbeeld: &quot;Jan Jansen&quot; of &quot;Marie de Vries&quot;</Text>
         
         <View style={styles.searchBox}>
           <TextInput
@@ -157,7 +157,7 @@ export default function SearchScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Zoek naar personen</Text>
             <Text style={styles.emptySubtext}>Voer een volledige naam in om te zoeken</Text>
-            <Text style={styles.emptySubtext}>Bijvoorbeeld: "Jan Jansen"</Text>
+            <Text style={styles.emptySubtext}>Bijvoorbeeld: &quot;Jan Jansen&quot;</Text>
           </View>
         )}
 

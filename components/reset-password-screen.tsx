@@ -80,7 +80,7 @@ export default function ResetPasswordScreen() {
           {!token && (
             <View style={styles.warningBox}>
               <Text style={styles.warningText}>⚠️ Geen geldige resetlink</Text>
-              <Text style={styles.warningSubtext}>Vraag een nieuwe resetlink aan via "Wachtwoord vergeten"</Text>
+              <Text style={styles.warningSubtext}>Vraag een nieuwe resetlink aan via &quot;Wachtwoord vergeten&quot;</Text>
             </View>
           )}
 

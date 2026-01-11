@@ -144,7 +144,7 @@ export default function HomePage() {
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF8700" />
-          <Text style={styles.loadingText}>Video's laden...</Text>
+          <Text style={styles.loadingText}>Video&apos;s laden...</Text>
         </View>
       </View>
     );
@@ -239,7 +239,7 @@ export default function HomePage() {
                 accessibilityLabel="Hint sluiten"
               >
                 <View style={styles.hintContent}>
-                  <Text style={styles.hintText}>Swipe omhoog om nieuwe video's te ontdekken</Text>
+                  <Text style={styles.hintText}>Swipe omhoog om nieuwe video&apos;s te ontdekken</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -267,10 +267,10 @@ export default function HomePage() {
             ListEmptyComponent={
               <View style={styles.emptyFeed}>
                 <Text style={styles.emptyFeedText}>
-                  Momenteel geen video's beschikbaar.
+                  Momenteel geen video&apos;s beschikbaar.
                 </Text>
                 <Text style={[styles.emptyFeedText, { fontSize: 14, marginTop: 8, opacity: 0.8 }]}>
-                  Nieuwe video's kunnen enkele minuten duren om te verwerken.
+                  Nieuwe video&apos;s kunnen enkele minuten duren om te verwerken.
                   Trek omlaag om te verversen.
                 </Text>
                 <TouchableOpacity style={styles.retryButton} onPress={loadVideoFeed} accessibilityRole="button" accessibilityLabel="Opnieuw laden">

@@ -518,10 +518,6 @@ export default function SettingsPage() {
                   accessibilityLabel={sector}
                   accessibilityState={{ selected: formData.sector === sector }}
                 >
-                  accessibilityRole="button"
-                  accessibilityLabel={sector}
-                  accessibilityState={{ selected: formData.sector === sector }}
-                  >
                   <Text
                     style={[
                       styles.modalOptionText,

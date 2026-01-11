@@ -203,7 +203,7 @@ export default function ProfilePage() {
     if (totalVideos === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.tabContentText}>Nog geen video's. Neem je eerste pitch op!</Text>
+          <Text style={styles.tabContentText}>Nog geen video&apos;s. Neem je eerste pitch op!</Text>
         </View>
       );
     }
