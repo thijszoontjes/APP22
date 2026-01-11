@@ -1,6 +1,6 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SendIconSvg from '@/assets/images/send-icon.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';

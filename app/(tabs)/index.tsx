@@ -5,14 +5,14 @@ import VideoFeedItem from '@/components/video-feed-item';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewToken,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    ViewToken,
 } from 'react-native';
 
 import { clearAuthToken, getHomeHintSeen, setHomeHintSeen } from '@/hooks/authStorage';
