@@ -1,6 +1,6 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
-import { ensureValidSession, getCurrentUserProfile, getProfilePhotoUrl, type UserModel } from '@/hooks/useAuthApi';
+import { ensureValidSession, getCurrentUserProfile, getMyBadges, getProfilePhotoUrl, type UserBadge, type UserModel } from '@/hooks/useAuthApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -88,6 +88,8 @@ export default function ProfilePage() {
   const [profileError, setProfileError] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [badgePopupVisible, setBadgePopupVisible] = useState(false);
 
   // Separate player for modal - only created when video is selected
   const modalPlayer = useVideoPlayer(selectedVideoUri || '');
@@ -138,6 +140,10 @@ export default function ProfilePage() {
           if (photoUrlData.url || photoUrlData.presigned_url) {
             setProfilePhotoUrl(photoUrlData.url || photoUrlData.presigned_url || null);
           }
+          
+          // Load badges
+          const userBadges = await getMyBadges();
+          setBadges(userBadges);
         } catch (err: any) {
           console.error('[Profile] Failed to refresh profile:', err);
         }
@@ -260,6 +266,19 @@ export default function ProfilePage() {
         ) : (
           <View style={styles.profilePicCircle} accessible={false} />
         )}
+        {badges.some(badge => badge.BadgeKey === 'profile_photo_uploaded') && (
+          <TouchableOpacity 
+            style={styles.badgeOverlay}
+            onPress={() => setBadgePopupVisible(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Badge bekijken"
+          >
+            <View style={styles.badgeContainerTop}>
+              <Text style={styles.badgeIcon}>📸</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
       <View style={styles.profileInfoContainer}>
         <Text style={styles.profileName}>
@@ -353,6 +372,36 @@ export default function ProfilePage() {
           )}
         </View>
       </Modal>
+
+      {/* Badge Info Popup */}
+      <Modal
+        visible={badgePopupVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBadgePopupVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.badgePopupOverlay}
+          activeOpacity={1}
+          onPress={() => setBadgePopupVisible(false)}
+        >
+          <View style={styles.badgePopupContainer}>
+            <TouchableOpacity
+              style={styles.badgePopupClose}
+              onPress={() => setBadgePopupVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Sluiten"
+            >
+              <Text style={styles.badgePopupCloseText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.badgePopupEmoji}>📸</Text>
+            <Text style={styles.badgePopupTitle}>Badge verdiend!</Text>
+            <Text style={styles.badgePopupMessage}>
+              Gebruiker heeft deze badge verdiend omdat profielfoto geüpload is.
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -376,6 +425,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     marginBottom: 24,
     minHeight: 120,
+    position: 'relative',
   },
   profilePicCircle: {
     width: 154,
@@ -390,9 +440,48 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
+  badgeOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: '25%',
+    zIndex: 10,
+  },
+  badgeContainerTop: {
+    backgroundColor: '#FFE5CC',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: ORANGE,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
   profileInfoContainer: {
     alignItems: 'center',
     marginBottom: 24,
+  },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  badgeContainer: {
+    backgroundColor: '#FFE5CC',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1.5,
+    borderColor: ORANGE,
+  },
+  badgeIcon: {
+    fontSize: 18,
   },
   pitchRow: {
     paddingHorizontal: 20,
@@ -533,5 +622,60 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  badgePopupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  badgePopupContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    maxWidth: 320,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  badgePopupClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  badgePopupCloseText: {
+    color: '#666',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  badgePopupEmoji: {
+    fontSize: 56,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  badgePopupTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A2233',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  badgePopupMessage: {
+    fontSize: 15,
+    color: '#5d5d5d',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

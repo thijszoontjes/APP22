@@ -1249,6 +1249,13 @@ export interface PresignProfilePhotoGetResponse {
   presigned_url?: string;
 }
 
+export interface UserBadge {
+  ID: number;
+  UserID: string;
+  BadgeKey: string;
+  EarnedAt: string; // ISO 8601 date-time
+}
+
 export async function uploadProfilePhoto(fileUri: string): Promise<UploadProfilePhotoResponse> {
   try {
     // Read file from URI
@@ -1310,5 +1317,69 @@ export async function getProfilePhotoUrl(): Promise<PresignProfilePhotoGetRespon
     console.warn('[getProfilePhotoUrl] Warning - profile photo unavailable:', err?.message);
     // Return empty object instead of throwing so the app continues to work
     return {};
+  }
+}
+
+export async function getMyBadges(): Promise<UserBadge[]> {
+  try {
+    console.log('[Badges] Fetching my badges...');
+    const res = await withAutoRefresh(
+      ["/users/me/badges"],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 503) {
+        console.log('[Badges] Badge endpoint not available (status ' + res.status + ')');
+        return [];
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[Badges] Error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await res.json();
+    console.log('[Badges] Received badges:', data);
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.warn('[Badges] Warning - badges unavailable:', err?.message);
+    return [];
+  }
+}
+
+export async function getUserBadges(userId: string): Promise<UserBadge[]> {
+  try {
+    console.log('[Badges] Fetching badges for user:', userId);
+    const res = await withAutoRefresh(
+      [`/users/id/${userId}/badges`],
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.log('[Badges] User not found or no badges (status 404)');
+        return [];
+      }
+      if (res.status === 503) {
+        console.log('[Badges] Badge endpoint not available (status 503)');
+        return [];
+      }
+      const errorMsg = await parseErrorMessage(res);
+      console.error('[Badges] Error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await res.json();
+    console.log('[Badges] Received badges for user:', data);
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.warn('[Badges] Warning - badges unavailable:', err?.message);
+    return [];
   }
 }
