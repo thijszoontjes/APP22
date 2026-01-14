@@ -202,9 +202,9 @@ export default function SearchScreen() {
                     style={styles.profileButton}
                     onPress={() => handleProfilePress(result)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Open profiel van ${result.first_name || ''} ${result.last_name || ''}`.trim()}
+                    accessibilityLabel={`Chat openen met ${result.first_name || ''} ${result.last_name || ''}`.trim()}
                   >
-                    <Text style={styles.profileButtonText}>Open profiel</Text>
+                    <Text style={styles.profileButtonText}>Chat openen</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.divider} />
