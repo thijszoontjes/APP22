@@ -36,6 +36,7 @@ export interface FeedItem {
   liked: boolean;
   likeCount: number;
   favorited?: boolean;
+  watched?: boolean; // Of de gebruiker deze video heeft bekeken
   owner?: VideoOwner;
   userId?: number; // ID van de user die de video uploaded heeft
   ownerId?: number; // Alternative field voor owner ID
@@ -377,6 +378,9 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     // Enrich with community stats (likes, like status)
     await enrichWithCommunityStats(normalized.items);
     
+    // Enrich with watch history and sort watched videos to bottom
+    await enrichWithWatchHistory(normalized.items);
+    
     // Enrich with displayName from JWT token for user's own videos
     await enrichWithDisplayName(normalized.items);
     
@@ -627,6 +631,41 @@ const enrichWithCommunityStats = async (items: FeedItem[]) => {
     console.log(`[VideoAPI] ✓ Community stats enrichment complete`);
   } catch (err) {
     console.warn('[VideoAPI] Could not enrich videos with community stats:', err);
+  }
+};
+
+// Enrich videos with watch history to mark watched videos
+const enrichWithWatchHistory = async (items: FeedItem[]) => {
+  try {
+    console.log(`[VideoAPI] Enriching ${items.length} videos with watch history...`);
+    
+    // Import getWatchHistory dynamically to avoid circular dependencies
+    const { getWatchHistory } = await import('./useCommunityApi');
+    
+    // Fetch watch history
+    const watchHistory = await getWatchHistory(1, 1000); // Get up to 1000 watched videos
+    const watchedVideoIds = new Set(
+      watchHistory.items.map((item) => String(item.video_id))
+    );
+    
+    console.log(`[VideoAPI] Found ${watchedVideoIds.size} watched videos`);
+    
+    // Mark videos as watched
+    items.forEach((item) => {
+      const videoIdStr = String(item.id);
+      item.watched = watchedVideoIds.has(videoIdStr);
+    });
+    
+    // Sort: unwatched videos first, watched videos at the bottom
+    items.sort((a, b) => {
+      if (a.watched === b.watched) return 0;
+      return a.watched ? 1 : -1; // Unwatched (false) comes first
+    });
+    
+    const watchedCount = items.filter(item => item.watched).length;
+    console.log(`[VideoAPI] ✓ Watch history enrichment complete: ${watchedCount} watched, ${items.length - watchedCount} unwatched`);
+  } catch (err) {
+    console.warn('[VideoAPI] Could not enrich videos with watch history:', err);
   }
 };
 

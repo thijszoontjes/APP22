@@ -3,7 +3,7 @@ import HeartIconSvg from '@/assets/images/heart-icon.svg';
 import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
-import { getVideoStats, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
+import { getVideoStats, recordVideoWatch, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
 import { getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -114,6 +114,12 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
       try {
         player.muted = false;
         player.play();
+        
+        // Record watch event when video starts playing
+        recordVideoWatch(String(item.id)).catch((err) => {
+          console.log('[VideoFeedItem] Failed to record watch:', err);
+          // Don't block video playback if recording fails
+        });
       } catch (error) {
         console.log('[VideoFeedItem] Error playing video:', error);
       }

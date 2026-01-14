@@ -246,3 +246,95 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
     throw new Error(err?.message || 'Kon favorite niet toevoegen');
   }
 }
+
+/**
+ * Record a video watch
+ */
+export interface WatchRequest {
+  video_id: string;
+}
+
+export interface WatchResponse {
+  message?: string;
+  status?: string;
+  [key: string]: any;
+}
+
+export async function recordVideoWatch(videoId: string): Promise<WatchResponse> {
+  try {
+    const payload: WatchRequest = {
+      video_id: String(videoId),
+    };
+
+    console.log('[Community] Record watch:', payload);
+
+    const res = await communityFetch('/api/v1/watch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let errorMsg = `Status ${res.status}`;
+      try {
+        const error = JSON.parse(text);
+        errorMsg = error.message || error.error || errorMsg;
+      } catch {}
+      console.error('[Community] Record watch error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await res.json();
+    console.log('[Community] Watch recorded:', data);
+    return data;
+  } catch (err: any) {
+    console.error('[Community] Record watch error:', err);
+    throw new Error(err?.message || 'Kon watch niet registreren');
+  }
+}
+
+/**
+ * Get user watch history
+ */
+export interface WatchHistoryItem {
+  video_id: string;
+  user_id: string;
+  watched_at: string;
+  [key: string]: any;
+}
+
+export interface WatchHistoryResponse {
+  items: WatchHistoryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  [key: string]: any;
+}
+
+export async function getWatchHistory(page: number = 1, pageSize: number = 100): Promise<WatchHistoryResponse> {
+  try {
+    console.log('[Community] Fetching watch history');
+
+    const res = await communityFetch(`/api/v1/watch-history?page=${page}&page_size=${pageSize}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      console.warn('[Community] Could not fetch watch history');
+      return { items: [], total: 0, page: 1, page_size: pageSize };
+    }
+
+    const data = await res.json();
+    console.log('[Community] Watch history:', data?.items?.length || 0, 'items');
+    return data;
+  } catch (err: any) {
+    console.warn('[Community] Error fetching watch history:', err?.message);
+    return { items: [], total: 0, page: 1, page_size: pageSize };
+  }
+}
