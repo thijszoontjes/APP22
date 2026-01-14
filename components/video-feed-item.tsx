@@ -3,6 +3,7 @@ import HeartIconSvg from '@/assets/images/heart-icon.svg';
 import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
+import { getUserById } from '@/hooks/useAuthApi';
 import { getVideoStats, recordVideoWatch, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
 import { getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useIsFocused } from '@react-navigation/native';
@@ -10,13 +11,13 @@ import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -258,7 +259,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
     }
   };
 
-  const handleChatPress = () => {
+  const handleChatPress = async () => {
     // Probeer verschillende velden voor owner ID
     const ownerId = item.owner?.id || item.userId || item.ownerId;
     
@@ -269,14 +270,40 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
     }
     
     console.log('[VideoFeedItem] Open chat met owner ID:', ownerId);
-    // Navigeer naar DM scherm met owner info
-    router.push({
-      pathname: '/dm',
-      params: {
-        userId: ownerId,
-        userName: item.owner?.displayName || 'Video eigenaar',
-      },
-    });
+    
+    try {
+      // Haal gebruiker info op als we geen displayName hebben
+      let displayName = item.owner?.displayName;
+      let userEmail = undefined;
+      
+      if (!displayName || displayName === 'Onbekend' || displayName === 'N/A') {
+        console.log('[VideoFeedItem] Ophalen gebruiker info voor:', ownerId);
+        const userProfile = await getUserById(String(ownerId));
+        displayName = `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'Video eigenaar';
+        userEmail = userProfile.email;
+        console.log('[VideoFeedItem] Gebruiker gevonden:', displayName, userEmail);
+      }
+      
+      // Navigeer naar DM scherm met owner info
+      router.push({
+        pathname: '/dm',
+        params: {
+          userId: String(ownerId),
+          userName: displayName || 'Video eigenaar',
+          ...(userEmail ? { userEmail } : {}),
+        },
+      });
+    } catch (error: any) {
+      console.error('[VideoFeedItem] Error loading user info:', error);
+      // Probeer toch te navigeren met basis info
+      router.push({
+        pathname: '/dm',
+        params: {
+          userId: String(ownerId),
+          userName: item.owner?.displayName || 'Video eigenaar',
+        },
+      });
+    }
   };
 
   const showPlaceholder = !videoSource || playerStatus === 'error';
@@ -354,7 +381,7 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
           <View style={styles.timeBadge}>
             <Text style={styles.timeBadgeText}>{getRelativeTime(item.createdAt)}</Text>
           </View>
-          <Text style={styles.name} numberOfLines={1}>{item.owner?.displayName || 'Onbekend'}</Text>
+          <Text style={styles.name} numberOfLines={1}>{item.owner?.displayName || (item.userId || item.ownerId ? 'Video eigenaar' : 'Onbekend')}</Text>
           <Text style={styles.subText} numberOfLines={2}>{item.title}</Text>
           {item.description && <Text style={styles.descText} numberOfLines={2}>{item.description}</Text>}
           {item.category && <Text style={styles.categoryText} numberOfLines={1}>{item.category}</Text>}

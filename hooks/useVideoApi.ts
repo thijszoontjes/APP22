@@ -231,6 +231,9 @@ const videoRequestWithAuth = async (
   return res;
 };
 
+// Cache om video ownership bij te houden (video ID -> userId)
+const videoOwnershipCache = new Map<string, string>();
+
 export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
   const toFeedResponse = (data: any): FeedResponse => {
     const items = Array.isArray(data?.items) ? data.items : [];
@@ -262,6 +265,18 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
 
       const listData = await listRes.json();
       console.log(`[VideoAPI] Fallback /videos returned ${listData?.items?.length || 0} items`);
+      
+      // Cache ownership info from /videos endpoint
+      if (listData?.items?.length > 0) {
+        listData.items.forEach((item: any) => {
+          const videoId = String(item.id);
+          const userId = item.userId || item.ownerId || item.owner?.id;
+          if (userId && userId !== 'NO_OWNER') {
+            videoOwnershipCache.set(videoId, String(userId));
+            console.log(`[VideoAPI] Cached ownership: video ${videoId} -> user ${userId}`);
+          }
+        });
+      }
       
       // Log ownership info to debug the filtering issue
       if (listData?.items?.length > 0) {
@@ -302,6 +317,32 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
   };
 
   try {
+    // ALWAYS populate cache first by calling /videos to get ownership info
+    console.log('[VideoAPI] Pre-populating ownership cache from /videos...');
+    try {
+      const videosRes = await videoRequestWithAuth("/videos", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (videosRes.ok) {
+        const videosData = await videosRes.json();
+        if (videosData?.items?.length > 0) {
+          videosData.items.forEach((item: any) => {
+            const videoId = String(item.id);
+            const userId = item.userId || item.ownerId || item.owner?.id;
+            if (userId && userId !== 'NO_OWNER') {
+              videoOwnershipCache.set(videoId, String(userId));
+              console.log(`[VideoAPI] Pre-cached ownership: video ${videoId} -> user ${userId}`);
+            }
+          });
+        }
+        console.log(`[VideoAPI] Cache populated with ${videoOwnershipCache.size} ownership entries`);
+      }
+    } catch (err) {
+      console.log('[VideoAPI] Failed to pre-populate cache, continuing with feed:', err);
+    }
+    
     const res = await videoRequestWithAuth(`/feed?limit=${limit}`, {
       method: "GET",
       headers: {
@@ -332,6 +373,18 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
     const data = await res.json();
     console.log(`[VideoAPI] Feed response received with ${data?.items?.length || 0} items`);
     const normalized = toFeedResponse(data);
+    
+    // Restore userId from cache for videos that don't have it in feed response
+    normalized.items.forEach(item => {
+      const videoId = String(item.id);
+      if (!item.userId && !item.ownerId && !item.owner?.id) {
+        const cachedUserId = videoOwnershipCache.get(videoId);
+        if (cachedUserId) {
+          item.userId = cachedUserId as any;
+          console.log(`[VideoAPI] Restored userId from cache: video ${videoId} -> user ${cachedUserId}`);
+        }
+      }
+    });
     
     // Debug: log ownership and categories of feed videos
     if (normalized.items.length > 0) {
@@ -645,7 +698,7 @@ const enrichWithWatchHistory = async (items: FeedItem[]) => {
     // Fetch watch history
     const watchHistory = await getWatchHistory(1, 1000); // Get up to 1000 watched videos
     const watchedVideoIds = new Set(
-      watchHistory.items.map((item) => String(item.video_id))
+      (watchHistory?.items || []).map((item) => String(item.video_id))
     );
     
     console.log(`[VideoAPI] Found ${watchedVideoIds.size} watched videos`);
@@ -691,34 +744,55 @@ const enrichWithDisplayName = async (items: FeedItem[]) => {
     
     for (const item of items) {
       // Log ownership info for debugging
-      const ownerId = item?.owner?.id ? String(item.owner.id).trim() : "";
+      let ownerId = item?.owner?.id ? String(item.owner.id).trim() : "";
       const userId = item?.userId != null ? String(item.userId).trim() : "";
       const ownerIdAlt = item?.ownerId != null ? String(item.ownerId).trim() : "";
-      const existingDisplayName = item?.owner?.displayName || '';
+      let existingDisplayName = item?.owner?.displayName || '';
+      
+      // Backend sometimes returns "NO_OWNER" and "NO_NAME" as placeholders - treat these as empty
+      if (ownerId === "NO_OWNER" || ownerId === "undefined") ownerId = "";
+      if (existingDisplayName === "NO_NAME" || existingDisplayName === "undefined") existingDisplayName = "";
       
       console.log(`[VideoAPI]   Video ${item.id}: ownerId="${ownerId}", userId="${userId}", ownerIdAlt="${ownerIdAlt}", existing displayName="${existingDisplayName}"`);
       
-      // Only enrich if we have a valid owner.id AND it matches current user AND displayName is missing
-      // CRITICAL: Don't enrich if owner.id is missing or empty - that means backend hasn't set ownership yet
-      if (!ownerId) {
-        console.log(`[VideoAPI]   Video ${item.id}: Skipping - no owner.id from backend`);
-        continue;
-      }
+      // Determine the actual owner ID from available fields
+      const videoOwnerId = ownerId || userId || ownerIdAlt;
+      const isMyVideo = videoOwnerId && videoOwnerId === tokenUserId;
       
-      const isMyVideo = ownerId === tokenUserId;
-      
-      // ONLY add displayName if it's actually missing or placeholder AND it's confirmed to be my video
-      if (isMyVideo && (!existingDisplayName || existingDisplayName === 'N/A' || existingDisplayName === 'Onbekend')) {
-        if (!item.owner) {
-          item.owner = { id: tokenUserId, displayName };
-        } else {
+      // ONLY enrich if userId field explicitly matches current user
+      // Do NOT assume videos without owner info are from current user - they might be from other users
+      if (userId && userId === tokenUserId) {
+        // This is confirmed to be the current user's video
+        if (!item.owner || !ownerId || ownerId === "") {
+          console.log(`[VideoAPI]   Video ${item.id}: Setting owner info for current user's video (userId match)`);
+          item.owner = {
+            id: tokenUserId,
+            displayName: displayName,
+          };
+          console.log(`[VideoAPI]   Video ${item.id}: ✓ Owner info set: ${displayName}`);
+        } else if (!existingDisplayName || existingDisplayName === 'N/A' || existingDisplayName === 'Onbekend') {
+          // Owner ID exists and matches, just update displayName
           item.owner.displayName = displayName;
+          console.log(`[VideoAPI]   Video ${item.id}: ✓ DisplayName updated: ${displayName}`);
+        } else {
+          console.log(`[VideoAPI]   Video ${item.id}: Already has displayName: ${existingDisplayName}`);
         }
-        console.log(`[VideoAPI]   Video ${item.id}: ✓ Enriched with displayName: ${displayName}`);
       } else if (isMyVideo) {
-        console.log(`[VideoAPI]   Video ${item.id}: Already has displayName: ${existingDisplayName}`);
+        // Owner ID matches but no userId field - enrich displayName
+        if (!existingDisplayName || existingDisplayName === 'N/A' || existingDisplayName === 'Onbekend') {
+          if (!item.owner) {
+            item.owner = { id: tokenUserId, displayName };
+          } else {
+            item.owner.displayName = displayName;
+          }
+          console.log(`[VideoAPI]   Video ${item.id}: ✓ Enriched with displayName: ${displayName}`);
+        } else {
+          console.log(`[VideoAPI]   Video ${item.id}: Already has displayName: ${existingDisplayName}`);
+        }
+      } else if (videoOwnerId) {
+        console.log(`[VideoAPI]   Video ${item.id}: Not my video (owner: ${videoOwnerId}, me: ${tokenUserId})`);
       } else {
-        console.log(`[VideoAPI]   Video ${item.id}: Not my video (owner: ${ownerId}, me: ${tokenUserId})`);
+        console.log(`[VideoAPI]   Video ${item.id}: No valid owner info - leaving as unknown`);
       }
     }
   } catch (err) {
