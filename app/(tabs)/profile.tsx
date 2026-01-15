@@ -1,6 +1,7 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { ensureValidSession, getCurrentUserProfile, getMyBadges, getProfilePhotoUrl, type UserBadge, type UserModel } from '@/hooks/useAuthApi';
+import { getUserLikedVideos } from '@/hooks/useCommunityApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -83,6 +84,8 @@ export default function ProfilePage() {
   ]);
   const [apiVideos, setApiVideos] = useState<FeedItem[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
+  const [likedVideos, setLikedVideos] = useState<any[]>([]);
+  const [likedVideosLoading, setLikedVideosLoading] = useState(false);
   const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
   const [profile, setProfile] = useState<UserModel | null>(null);
   const [profileError, setProfileError] = useState('');
@@ -167,12 +170,30 @@ export default function ProfilePage() {
     }
   }, []);
 
+  // Load user's liked videos from API
+  const loadLikedVideos = useCallback(async () => {
+    setLikedVideosLoading(true);
+    try {
+      console.log('[Profile] Loading liked videos from API...');
+      const data = await getUserLikedVideos(1, 100);
+      const videosList = data.items || data.data || [];
+      setLikedVideos(videosList);
+      console.log('[Profile] Loaded', videosList.length, 'liked videos from API');
+    } catch (err: any) {
+      console.error('[Profile] Failed to load liked videos:', err);
+      setLikedVideos([]);
+    } finally {
+      setLikedVideosLoading(false);
+    }
+  }, []);
+
   // Reload videos when screen comes into focus (e.g., after upload)
   useFocusEffect(
     useCallback(() => {
       console.log('[Profile] Screen focused, loading videos...');
       loadVideos();
-    }, [loadVideos])
+      loadLikedVideos();
+    }, [loadVideos, loadLikedVideos])
   );
 
   const totalVideos = apiVideos.length;
@@ -230,6 +251,49 @@ export default function ProfilePage() {
                 key={`api-${video.id}`}
                 uri={uri}
                 onPress={() => setSelectedVideoUri(uri)}
+                isVisible={visibleIndices.has(i)}
+              />
+            );
+          })}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderLikedVideos = () => {
+    if (likedVideosLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.tabContentText}>Laden...</Text>
+        </View>
+      );
+    }
+
+    if (likedVideos.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.tabContentText}>Nog geen video&apos;s geliked</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.videosGridContainer}
+        style={styles.videosScroll}
+        onScroll={handleScroll}
+        scrollEventThrottle={200}>
+        <View style={styles.videosGrid}>
+          {likedVideos.map((video, i) => {
+            // Handle different response formats from API
+            const videoId = video.id || video.video_id;
+            const videoUri = video.playable_url || video.uri || video.mux_playback_id ? `mux://${video.mux_playback_id}` : '';
+            return (
+              <VideoThumbnail 
+                key={`liked-${videoId}`}
+                uri={videoUri}
+                onPress={() => setSelectedVideoUri(videoUri)}
                 isVisible={visibleIndices.has(i)}
               />
             );
@@ -313,18 +377,26 @@ export default function ProfilePage() {
       </View>
       <TabView
         navigationState={{ index, routes }}
+        onIndexChange={(newIndex) => {
+          setIndex(newIndex);
+          // Refresh liked videos when switching to the liked videos tab
+          if (newIndex === 1) {
+            console.log('[Profile] Switching to liked videos tab, refreshing...');
+            loadLikedVideos();
+          }
+        }}
         renderScene={({ route }) => {
           if (route.key === 'first') {
             return (
               <View style={styles.tabContentContainer}>
-{renderOwnVideos()}
+                {renderOwnVideos()}
               </View>
             );
           }
           if (route.key === 'second') {
             return (
               <View style={styles.tabContentContainer}>
-                <Text style={styles.tabContentText}>Tab: Gelikte video</Text>
+                {renderLikedVideos()}
               </View>
             );
           }
@@ -539,10 +611,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tabContentContainer: {
-    alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingVertical: 16,
   },
   tabContentText: {
@@ -559,18 +630,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   videosGridContainer: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     paddingVertical: 8,
   },
   videosGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
-    gap: 8,
+    gap: 0,
   },
   videoThumbnailContainer: {
-    width: '28%',
-    aspectRatio: 2 / 3,
+    width: 120,
+    height: 160,
+    paddingLeft: 25,
   },
   videoThumbnailWrapper: {
     width: '100%',
