@@ -88,7 +88,7 @@ export default function RegisterScreen() {
     const last_name = rest.join(' ') || first_name;
 
     try {
-      const createdUser = await registerApi({
+      await registerApi({
         first_name,
         last_name,
         email: normalizedEmail,
@@ -97,7 +97,6 @@ export default function RegisterScreen() {
       });
       // Auto-inloggen voor direct gebruik na registreren (met retry zodat Keycloak sync tijd heeft)
       let tokenReceived = false;
-      let lastError: any = null;
       // Probeer 5x met langere tussenpozen (totaal ~6 seconden)
       for (let attempt = 0; attempt < 5 && !tokenReceived; attempt += 1) {
         try {
@@ -111,8 +110,7 @@ export default function RegisterScreen() {
             router.replace('/(tabs)');
             break;
           }
-        } catch (err: any) {
-          lastError = err;
+        } catch {
           if (attempt < 4) {
             // Wacht langer bij elke poging: 800ms, 1200ms, 1600ms, 2000ms
             await sleep(800 + (attempt * 400));

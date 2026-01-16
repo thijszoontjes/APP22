@@ -1,6 +1,6 @@
 import FilterIconSvg from '@/assets/images/filter-icon.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import VideoFeedItem from '@/components/video-feed-item';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -72,7 +72,7 @@ export default function HomePage() {
     }, 2 * 60 * 1000); // Elke 2 minuten
 
     return () => clearInterval(sessionCheckInterval);
-  }, []);
+  }, [router]);
 
   const loadVideoFeed = async () => {
     try {

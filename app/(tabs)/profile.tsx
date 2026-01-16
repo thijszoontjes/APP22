@@ -1,5 +1,5 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { ensureValidSession, getCurrentUserProfile, getProfilePhotoUrl, type UserModel } from '@/hooks/useAuthApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -86,7 +86,6 @@ export default function ProfilePage() {
   const [visibleIndices, setVisibleIndices] = useState(new Set<number>([0, 1, 2])); // Start with first 3 visible
   const [profile, setProfile] = useState<UserModel | null>(null);
   const [profileError, setProfileError] = useState('');
-  const [profileLoading, setProfileLoading] = useState(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
 
   // Separate player for modal - only created when video is selected
@@ -98,12 +97,10 @@ export default function ProfilePage() {
       const isValid = await ensureValidSession();
       if (!isValid) {
         setProfileError('Sessie verlopen. Log opnieuw in.');
-        setProfileLoading(false);
         router.replace('/login');
         return;
       }
 
-      setProfileLoading(true);
       try {
         const data = await getCurrentUserProfile();
         setProfile(data);
@@ -118,12 +115,10 @@ export default function ProfilePage() {
         } else {
           setProfileError('Kon profiel niet laden. Gebruik placeholder-gegevens.');
         }
-      } finally {
-        setProfileLoading(false);
       }
     };
     loadProfile();
-  }, []);
+  }, [router]);
 
   // Refresh profile when screen is focused (e.g., returning from settings)
   useFocusEffect(
@@ -173,7 +168,6 @@ export default function ProfilePage() {
 
   const handleScroll = useCallback((event: any) => {
     const offsetY = event.nativeEvent.contentOffset.y;
-    const contentHeight = event.nativeEvent.contentSize.height;
     const layoutHeight = event.nativeEvent.layoutMeasurement.height;
     
     // Calculate which videos should be visible (roughly 2 rows above/below viewport)

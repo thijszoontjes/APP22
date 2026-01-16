@@ -1,9 +1,9 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SearchIconSvg from '@/assets/images/search-icon.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { searchUsers, type UserModel } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
@@ -15,27 +15,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const searchTimeout = setTimeout(() => {
-      if (query.trim().length === 0) {
-        setResults([]);
-        setError('');
-        return;
-      }
-
-      if (query.trim().length < 2) {
-        setResults([]);
-        setError('');
-        return;
-      }
-
-      performSearch();
-    }, 500); // Debounce: wacht 500ms na laatste typing
-
-    return () => clearTimeout(searchTimeout);
-  }, [query]);
-
-  const performSearch = async () => {
+  const performSearch = useCallback(async () => {
     setLoading(true);
     setError('');
     
@@ -66,7 +46,27 @@ export default function SearchScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
+
+  useEffect(() => {
+    const searchTimeout = setTimeout(() => {
+      if (query.trim().length === 0) {
+        setResults([]);
+        setError('');
+        return;
+      }
+
+      if (query.trim().length < 2) {
+        setResults([]);
+        setError('');
+        return;
+      }
+
+      performSearch();
+    }, 500); // Debounce: wacht 500ms na laatste typing
+
+    return () => clearTimeout(searchTimeout);
+  }, [performSearch, query]);
 
   const handleProfilePress = (user: UserModel) => {
     if (!user?.email) {

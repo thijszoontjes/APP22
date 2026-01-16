@@ -3,11 +3,7 @@ import React from 'react';
 
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   // Custom tab bar component
   const ORANGE = '#FF8700';
   const NAV_ITEMS = [

@@ -1,5 +1,5 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { fetchConversation, getUserById, sendChatMessage, sendNotification, type ChatMessage as ApiChatMessage } from '@/hooks/useAuthApi';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -58,10 +58,6 @@ export default function DMChatPage() {
   }, [messages.length]);
 
   useEffect(() => {
-    loadConversation();
-  }, [contactEmail, initialEmail]);
-
-  useEffect(() => {
     if (!userId) {
       setContactEmail(contactEmail || null);
       return;
@@ -96,7 +92,7 @@ export default function DMChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [contactEmail, userId]);
+  }, [contactEmail, contactName, userId]);
 
   const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
@@ -119,7 +115,7 @@ export default function DMChatPage() {
     }
   }, [userId]);
 
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     const targetEmail = (contactEmail || initialEmail || '').trim();
     if (!targetEmail) {
       console.warn('[DM] Geen e-mailadres beschikbaar voor deze chat.');
@@ -151,7 +147,11 @@ export default function DMChatPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [contactEmail, contactName, initialEmail, persistRecentContact]);
+
+  useEffect(() => {
+    loadConversation();
+  }, [loadConversation]);
 
   const triggerNotification = useCallback((messageText: string) => {
     if (!contactEmail) {

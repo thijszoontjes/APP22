@@ -1,5 +1,5 @@
-import AppHeader from '@/components/app-header';
-import { ensureValidSession, fetchConversations, getUserById } from '@/hooks/useAuthApi';
+import { AppHeader } from '@/components/app-header';
+import { ensureValidSession, fetchConversations } from '@/hooks/useAuthApi';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -81,52 +81,6 @@ export default function ChatPage() {
       // best-effort
     }
   }, [readStoredChats]);
-
-  const fetchPreview = useCallback(async (contact: StoredChatRef): Promise<ChatListItem | null> => {
-    const email = contact.email.trim();
-    const userId = contact.userId?.trim();
-    if (!email) {
-      return null;
-    }
-    try {
-      const [user, messages] = await Promise.allSettled([
-        userId ? getUserById(userId) : Promise.resolve(null as any),
-        fetchConversation(email),
-      ]);
-
-      let name = contact.name || '';
-      if (user.status === 'fulfilled' && user.value) {
-        const maybeName = [user.value.first_name, user.value.last_name].filter(Boolean).join(' ').trim();
-        if (maybeName) name = maybeName;
-      }
-      if (!name) {
-        name = email;
-      }
-
-      const list = messages.status === 'fulfilled' && Array.isArray(messages.value) ? messages.value : [];
-      const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      const last = sorted[sorted.length - 1];
-
-      // Skip chats without any messages (placeholder data)
-      if (!last) {
-        return null;
-      }
-
-      return {
-        id: email,
-        email,
-        userId,
-        name,
-        message: last?.content || 'Nog geen berichten',
-        time: formatTimeLabel(last?.created_at),
-        lastAt: last ? new Date(last.created_at).getTime() : 0,
-        initials: deriveInitials(name),
-      };
-    } catch {
-      // Skip chats that fail to load (likely placeholder data)
-      return null;
-    }
-  }, []);
 
   const loadChats = useCallback(async () => {
     setError('');
@@ -228,7 +182,7 @@ export default function ChatPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [readStoredChats]);
+  }, [readStoredChats, router]);
 
   useEffect(() => {
     loadChats();

@@ -1,13 +1,13 @@
 import ArrowBackSvg from '@/assets/images/arrow-back.svg';
 import SaveIconSvg from '@/assets/images/save-icon.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { getDiscoveryPreferences, getUserInterests, updateDiscoveryPreferences, updateUserInterests, UserInterestsInput } from '@/hooks/useAuthApi';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityActionEvent, LayoutChangeEvent, NativeTouchEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityActionEvent, LayoutChangeEvent, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ORANGE = '#FF8700';
 const DEFAULT_DISTANCE = 25;
@@ -29,14 +29,6 @@ const CATEGORY_OPTIONS = [
   { key: 'Behoefte aan Investering', label: 'Behoefte aan Investering' },
   { key: 'Interesse om te Investeren', label: 'Interesse om te Investeren' },
 ];
-
-const CATEGORY_KEY_BY_LABEL = CATEGORY_OPTIONS.reduce<Record<string, string>>((acc, opt) => {
-  const lower = opt.label.toLowerCase();
-  acc[opt.key.toLowerCase()] = opt.key;
-  acc[lower] = opt.key;
-  acc[lower.replace(/\s+/g, '_')] = opt.key;
-  return acc;
-}, {});
 
 const FILTER_CACHE_KEY = 'user_filters_cache_v1';
 
@@ -101,14 +93,6 @@ export default function FiltersPage() {
     } catch {
       // best-effort cache
     }
-  }, []);
-
-  const normalizeCategoryValue = useCallback((value: any) => {
-    const candidate = typeof value === 'string' ? value : value?.key || value?.name || value?.label || value?.title;
-    if (typeof candidate !== 'string') return null;
-    const lower = candidate.trim().toLowerCase();
-    const simplified = lower.replace(/\s+/g, '_');
-    return CATEGORY_KEY_BY_LABEL[lower] || CATEGORY_KEY_BY_LABEL[simplified] || null;
   }, []);
 
   const collectCategoriesFromApi = useCallback((data: UserInterestsInput) => {
@@ -227,7 +211,7 @@ export default function FiltersPage() {
     } finally {
       setLoadingFilters(false);
     }
-  }, [collectCategoriesFromApi, cachedLoaded, readCachedFilters]);
+  }, [collectCategoriesFromApi, cachedLoaded, readCachedFilters, writeCachedFilters]);
 
   useEffect(() => {
     loadFilters();
@@ -274,10 +258,6 @@ export default function FiltersPage() {
       const next = Math.round(newValue);
       return next === prev ? prev : next;
     });
-  };
-
-  const handleResponder = (e: { nativeEvent: NativeTouchEvent }) => {
-    updateValueFromX(e.nativeEvent.locationX);
   };
 
   const handleSliderAccessibility = (event: AccessibilityActionEvent) => {

@@ -5,7 +5,7 @@ import FlashOffSvg from '@/assets/images/flash-off-icon.svg';
 import { addPitch } from '@/constants/pitch-store';
 import { Camera, CameraType, CameraView } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -70,25 +70,12 @@ export default function PitchRecorder() {
     }
   }, [facing, torchEnabled]);
 
-  useEffect(() => {
-    if (countdown === 0 && isRecording) {
-      stopRecording();
-    }
-  }, [countdown, isRecording]);
-
-  useEffect(() => {
-    return () => {
-      stopCountdown();
-      cameraRef.current?.stopRecording();
-    };
-  }, []);
-
-  const stopCountdown = () => {
+  const stopCountdown = useCallback(() => {
     if (countdownRef.current) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
     }
-  };
+  }, []);
 
   const startCountdown = () => {
     stopCountdown();
@@ -131,14 +118,27 @@ export default function PitchRecorder() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (!isRecording) {
       return;
     }
     stopCountdown();
     setIsRecording(false);
     cameraRef.current?.stopRecording();
-  };
+  }, [isRecording, stopCountdown]);
+
+  useEffect(() => {
+    if (countdown === 0 && isRecording) {
+      stopRecording();
+    }
+  }, [countdown, isRecording, stopRecording]);
+
+  useEffect(() => {
+    return () => {
+      stopCountdown();
+      cameraRef.current?.stopRecording();
+    };
+  }, [stopCountdown]);
 
   const formatTime = () => {
     if (countdown === COUNTDOWN_START) {

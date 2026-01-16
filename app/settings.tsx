@@ -3,7 +3,7 @@ import EditSvg from '@/assets/images/edit-svgrepo-com.svg';
 import MailSvg from '@/assets/images/mail-alt-3-svgrepo-com.svg';
 import NotificationSvg from '@/assets/images/notification-12-svgrepo-com.svg';
 import PhoneSvg from '@/assets/images/phone-svgrepo-com.svg';
-import AppHeader from '@/components/app-header';
+import { AppHeader } from '@/components/app-header';
 import { getCurrentUserProfile, getUserInterests, logoutApi, updateUserInterests, updateUserProfile, uploadProfilePhoto } from '@/hooks/useAuthApi';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -30,7 +30,6 @@ const SECTOR_OPTIONS = [
 export default function SettingsPage() {
   const router = useRouter();
   const [showSectorPicker, setShowSectorPicker] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     naam: '',
@@ -85,8 +84,6 @@ export default function SettingsPage() {
         }
       } catch (error) {
         console.error('Error loading user profile:', error);
-      } finally {
-        setLoading(false);
       }
     };
 

@@ -57,8 +57,6 @@ export default function PitchPreview() {
   const [isEditing, setIsEditing] = useState(false);
   const [activeEditor, setActiveEditor] = useState<'light' | 'trim' | 'sound' | null>(null);
   const [lightValue, setLightValue] = useState(0);
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(100);
   const [videoDuration, setVideoDuration] = useState(0);
   const [selectedStart, setSelectedStart] = useState(0);
   const [selectedEnd, setSelectedEnd] = useState(100);
@@ -89,7 +87,7 @@ export default function PitchPreview() {
         if (isMountedRef.current) {
           player.play();
         }
-      } catch (err) {
+      } catch {
         // Player might be released
       }
     }, 500);
@@ -112,13 +110,13 @@ export default function PitchPreview() {
         if (duration && duration > 0) {
           setVideoDuration(duration * 1000); // Convert to milliseconds
         }
-      } catch (err) {
+      } catch {
         // Silently continue polling
       }
     }, 100);
     
     return () => clearInterval(interval);
-  }, [player]);
+  }, [player, videoDuration]);
 
   // Track playing state
   useEffect(() => {
@@ -170,7 +168,7 @@ export default function PitchPreview() {
             player.play();
           }
         }
-      } catch (err) {
+      } catch {
         // Silently ignore errors - player might be changing
       }
     }, 100);
