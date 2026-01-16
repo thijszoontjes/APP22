@@ -100,7 +100,7 @@ export interface UserLikes {
 }
 
 /**
- * Toggle like on a video (like/unlike)
+ * Toggle like on a video
  */
 export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
   try {
@@ -249,7 +249,7 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
 
 /**
  * Record a video watch
- */
+ 
 export interface WatchRequest {
   video_id: string;
 }
@@ -295,6 +295,7 @@ export async function recordVideoWatch(videoId: string): Promise<WatchResponse> 
     throw new Error(err?.message || 'Kon watch niet registreren');
   }
 }
+  */
 
 /**
  * Get user watch history
