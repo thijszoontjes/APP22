@@ -1,4 +1,8 @@
-// Suppress Expo warnings
+// Suppress Expo warnings - disable winter module
+global.__ExpoImportMetaRegistry = {};
+global.TextDecoderStream = class {};
+global.TextEncoderStream = class {};
+
 jest.mock('expo', () => ({
   registerRootComponent: jest.fn(),
 }));
