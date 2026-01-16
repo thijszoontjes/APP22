@@ -1,7 +1,20 @@
+// Mock Expo winter module system BEFORE anything else imports it
+jest.mock('expo/src/winter/runtime.native', () => ({}), { virtual: true });
+jest.mock('expo/src/winter/installGlobal', () => ({}), { virtual: true });
+
 // Suppress Expo warnings - disable winter module
-global.__ExpoImportMetaRegistry = {};
-global.TextDecoderStream = class {};
-global.TextEncoderStream = class {};
+global.__ExpoImportMetaRegistry = new Proxy({}, {
+  get: () => undefined,
+  set: () => true,
+});
+global.structuredClone = global.structuredClone || ((obj) => JSON.parse(JSON.stringify(obj)));
+global.TextDecoder = global.TextDecoder || class { decode() { return ''; } };
+global.TextEncoder = global.TextEncoder || class { encode() { return new Uint8Array(); } };
+global.TextDecoderStream = global.TextDecoderStream || class {};
+global.TextEncoderStream = global.TextEncoderStream || class {};
+global.ReadableStream = global.ReadableStream || class {};
+global.WritableStream = global.WritableStream || class {};
+global.TransformStream = global.TransformStream || class {};
 
 jest.mock('expo', () => ({
   registerRootComponent: jest.fn(),

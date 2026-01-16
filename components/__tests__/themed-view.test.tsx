@@ -2,37 +2,38 @@
  * @jest-environment jsdom
  */
 import React from 'react';
+import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { ThemedView } from '../themed-view';
 
 describe('ThemedView Component', () => {
   it('should render correctly', () => {
-    const { container } = render(<ThemedView />);
-    expect(container).toBeTruthy();
+    const { root } = render(<ThemedView />);
+    expect(root).toBeTruthy();
   });
 
   it('should render children correctly', () => {
     const { getByText } = render(
       <ThemedView>
-        <ThemedView>Test Content</ThemedView>
+        <Text>Test Content</Text>
       </ThemedView>
     );
     expect(getByText('Test Content')).toBeTruthy();
   });
 
   it('should apply custom styles', () => {
-    const { container } = render(
+    const { root } = render(
       <ThemedView style={{ padding: 20 }} />
     );
-    expect(container).toBeTruthy();
+    expect(root).toBeTruthy();
   });
 
   it('should handle multiple children', () => {
     const { getByText } = render(
       <ThemedView>
-        <ThemedView>Child 1</ThemedView>
-        <ThemedView>Child 2</ThemedView>
-        <ThemedView>Child 3</ThemedView>
+        <Text>Child 1</Text>
+        <Text>Child 2</Text>
+        <Text>Child 3</Text>
       </ThemedView>
     );
     expect(getByText('Child 1')).toBeTruthy();

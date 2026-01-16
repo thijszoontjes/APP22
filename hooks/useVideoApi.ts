@@ -248,7 +248,7 @@ export async function getVideoFeed(limit: number = 10): Promise<FeedResponse> {
   const fallbackToAllVideos = async (): Promise<FeedResponse | null> => {
     try {
       console.log('[VideoAPI] Attempting fallback to /videos endpoint');
-      console.log('[VideoAPI] WARNING: /videos may only return current user videos - not all videos!');
+  
       const listRes = await videoRequestWithAuth("/videos", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
