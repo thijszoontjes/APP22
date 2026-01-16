@@ -1,22 +1,21 @@
 module.exports = {
-  testEnvironment: 'node',
+  preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: [
     '**/__tests__/**/*.test.[jt]s',
+    '**/__tests__/**/*.test.[jt]sx',
   ],
   collectCoverageFrom: [
-    '**/*.{js,ts}',
+    '**/*.{js,ts,tsx}',
     '!**/node_modules/**',
     '!**/.expo/**',
     '!**/dist/**',
     '!**/coverage/**',
     '!**/*.config.js',
   ],
-  moduleFileExtensions: ['ts', 'js'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.expo/',
-    '/components/__tests__/',
-    '/hooks/__tests__/',
   ],
 };

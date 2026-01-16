@@ -11,7 +11,8 @@
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "e2e": "maestro test maestro/launch.yaml"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

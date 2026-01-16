@@ -1,0 +1,8 @@
+appId: com.anonymous.APP22
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Inloggen"
+    timeout: 30000
+- assertVisible: "E-mail"
+- assertVisible: "Wachtwoord"
