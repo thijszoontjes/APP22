@@ -157,7 +157,6 @@ export interface VideoStats {
   video_id?: string;
   likes_count?: number;
   favorites_count?: number;
-  comments_count?: number;
   shares_count?: number;
   views_count?: number;
   [key: string]: any;
