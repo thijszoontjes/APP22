@@ -11,7 +11,7 @@ const LIKED_VIDEOS_KEY_PREFIX = "liked_videos_v1_";
 const FAVORITED_VIDEOS_KEY_PREFIX = "favorited_videos_v1_";
 
 // Extract user_id from access token JWT
-const getUserIdFromToken = (accessToken: string | null): string | null => {
+export const getUserIdFromToken = (accessToken: string | null): string | null => {
   if (!accessToken) return null;
   try {
     const parts = accessToken.split('.');
@@ -152,6 +152,7 @@ export const getLikedVideos = async (): Promise<Set<string>> => {
     const ids = JSON.parse(json) as string[];
     return new Set(ids);
   } catch (err) {
+    console.warn('[Storage] Failed to get liked videos:', err);
     return new Set();
   }
 };
@@ -168,7 +169,7 @@ export const addLikedVideo = async (videoId: string) => {
     const json = JSON.stringify(Array.from(likedVideos));
     await SecureStore.setItemAsync(key, json);
   } catch (err) {
-    // best-effort
+    console.warn('[Storage] Failed to add liked video:', videoId, err);
   }
 };
 
@@ -184,7 +185,7 @@ export const removeLikedVideo = async (videoId: string) => {
     const json = JSON.stringify(Array.from(likedVideos));
     await SecureStore.setItemAsync(key, json);
   } catch (err) {
-    // best-effort
+    console.warn('[Storage] Failed to remove liked video:', videoId, err);
   }
 };
 
@@ -192,7 +193,8 @@ export const isVideoLiked = async (videoId: string): Promise<boolean> => {
   try {
     const likedVideos = await getLikedVideos();
     return likedVideos.has(String(videoId));
-  } catch {
+  } catch (err) {
+    console.warn('[Storage] Failed to check if video is liked:', videoId, err);
     return false;
   }
 };
@@ -210,6 +212,7 @@ export const getFavoritedVideos = async (): Promise<Set<string>> => {
     const ids = JSON.parse(json) as string[];
     return new Set(ids);
   } catch (err) {
+    console.warn('[Storage] Failed to get favorited videos:', err);
     return new Set();
   }
 };
@@ -226,7 +229,7 @@ export const addFavoritedVideo = async (videoId: string) => {
     const json = JSON.stringify(Array.from(favoritedVideos));
     await SecureStore.setItemAsync(key, json);
   } catch (err) {
-    // best-effort
+    console.warn('[Storage] Failed to add favorited video:', videoId, err);
   }
 };
 
@@ -242,7 +245,7 @@ export const removeFavoritedVideo = async (videoId: string) => {
     const json = JSON.stringify(Array.from(favoritedVideos));
     await SecureStore.setItemAsync(key, json);
   } catch (err) {
-    // best-effort
+    console.warn('[Storage] Failed to remove favorited video:', videoId, err);
   }
 };
 
@@ -250,7 +253,8 @@ export const isVideoFavorited = async (videoId: string): Promise<boolean> => {
   try {
     const favoritedVideos = await getFavoritedVideos();
     return favoritedVideos.has(String(videoId));
-  } catch {
+  } catch (err) {
+    console.warn('[Storage] Failed to check if video is favorited:', videoId, err);
     return false;
   }
 };

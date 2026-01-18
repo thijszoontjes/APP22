@@ -1,5 +1,37 @@
 import { BASE_URLS, COMMUNITY_BASE_URLS } from "@/constants/api";
-import { addFavoritedVideo, addLikedVideo, clearAuthToken, getAuthTokens, removeFavoritedVideo, removeLikedVideo, saveAuthTokens } from "./authStorage";
+import { addFavoritedVideo, addLikedVideo, clearAuthToken, getAuthTokens, getUserIdFromToken, removeFavoritedVideo, removeLikedVideo, saveAuthTokens } from "./authStorage";
+
+// Make a request to the Community Service with proper headers
+async function makeRequest(
+  endpoint: string,
+  accessToken: string,
+  userId: string | null,
+  options: RequestInit
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+    'Authorization': `Bearer ${accessToken}`,
+  };
+
+  if (userId) {
+    headers['User-ID'] = userId;
+  }
+
+  // Try all base URLs
+  for (const baseUrl of COMMUNITY_BASE_URLS) {
+    try {
+      return await fetch(`${baseUrl}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch (err) {
+      // Try next URL
+      continue;
+    }
+  }
+
+  throw new Error('Could not connect to Community Service');
+}
 
 // Helper to make requests with automatic token refresh
 async function communityFetch(endpoint: string, options: RequestInit): Promise<Response> {
@@ -10,45 +42,10 @@ async function communityFetch(endpoint: string, options: RequestInit): Promise<R
   }
 
   // Extract user_id from JWT token
-  let userId = '';
-  try {
-    const parts = tokens.accessToken.split('.');
-    if (parts.length === 3) {
-      const decoded = JSON.parse(atob(parts[1]));
-      userId = decoded.sub || decoded.user_id || decoded.id || '';
-    }
-  } catch (err) {
-    // Continue without userId
-  }
-
-  const makeRequest = async (accessToken: string): Promise<Response> => {
-    const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string>),
-      'Authorization': `Bearer ${accessToken}`,
-    };
-
-    if (userId) {
-      headers['User-ID'] = userId;
-    }
-
-    // Try all base URLs
-    for (const baseUrl of COMMUNITY_BASE_URLS) {
-      try {
-        return await fetch(`${baseUrl}${endpoint}`, {
-          ...options,
-          headers,
-        });
-      } catch (err) {
-        // Try next URL
-        continue;
-      }
-    }
-
-    throw new Error('Could not connect to Community Service');
-  };
+  const userId = await getUserIdFromToken(tokens.accessToken);
 
   // First attempt
-  let res = await makeRequest(tokens.accessToken);
+  let res = await makeRequest(endpoint, tokens.accessToken, userId, options);
 
   // If 401, refresh and retry
   if (res.status === 401 && tokens?.refreshToken) {
@@ -66,7 +63,7 @@ async function communityFetch(endpoint: string, options: RequestInit): Promise<R
           
           if (newAccessToken) {
             await saveAuthTokens(newAccessToken, tokens.refreshToken);
-            return await makeRequest(newAccessToken);
+            return await makeRequest(endpoint, newAccessToken, userId, options);
           }
         }
       } catch (err) {
@@ -86,26 +83,15 @@ export interface LikeRequest {
 
 export interface LikeResponse {
   message?: string;
-  status?: string;
   liked?: boolean;
   [key: string]: any;
 }
 
-export interface UserLikes {
-  video_id: string;
-  user_id: string;
-  liked: boolean;
-  created_at?: string;
-  [key: string]: any;
-}
-
-/**
- * Toggle like on a video
- */
+ //Toggle like on a video
 export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
   try {
     const payload: LikeRequest = {
-      video_id: String(videoId), // Ensure video_id is always a string
+      video_id: String(videoId),
     };
 
     console.log('[Community] Toggle like:', payload);
@@ -131,6 +117,7 @@ export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
 
     const data = await res.json();
     console.log('[Community] Like toggled:', data);
+    console.log('[Community] Like response:', JSON.stringify(data, null, 2));
     
     // Save like status locally
     const videoIdStr = String(videoId);
@@ -147,18 +134,11 @@ export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
   }
 }
 
-/**
- * Get like status for a video (check if current user liked it)
- */
-/**
- * Get video statistics including likes, favorites, comments, shares, views
- */
+
 export interface VideoStats {
   video_id?: string;
   likes_count?: number;
   favorites_count?: number;
-  comments_count?: number;
-  shares_count?: number;
   views_count?: number;
   [key: string]: any;
 }
@@ -188,16 +168,13 @@ export async function getVideoStats(videoId: string): Promise<VideoStats> {
   }
 }
 
-/**
- * Toggle favorite on a video
- */
+ // Toggle favorite on a video
 export interface FavoriteRequest {
   video_id: string;
 }
 
 export interface FavoriteResponse {
   message?: string;
-  status?: string;
   favorited?: boolean;
   [key: string]: any;
 }
