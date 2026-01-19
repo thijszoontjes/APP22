@@ -94,8 +94,6 @@ export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
       video_id: String(videoId),
     };
 
-    console.log('[Community] Toggle like:', payload);
-
     const res = await communityFetch('/api/v1/likes', {
       method: 'POST',
       headers: {
@@ -116,8 +114,6 @@ export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
     }
 
     const data = await res.json();
-    console.log('[Community] Like toggled:', data);
-    console.log('[Community] Like response:', JSON.stringify(data, null, 2));
     
     // Save like status locally
     const videoIdStr = String(videoId);
@@ -145,8 +141,6 @@ export interface VideoStats {
 
 export async function getVideoStats(videoId: string): Promise<VideoStats> {
   try {
-    console.log('[Community] Fetching stats for video:', videoId);
-
     const res = await communityFetch(`/api/v1/videos/${videoId}/stats`, {
       method: 'GET',
       headers: {
@@ -160,7 +154,6 @@ export async function getVideoStats(videoId: string): Promise<VideoStats> {
     }
 
     const data = await res.json();
-    console.log('[Community] Video stats:', data);
     return data;
   } catch (err: any) {
     console.warn('[Community] Error fetching video stats:', err?.message);
@@ -185,8 +178,6 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
       video_id: String(videoId),
     };
 
-    console.log('[Community] Toggle favorite:', payload);
-
     const res = await communityFetch('/api/v1/favorites', {
       method: 'POST',
       headers: {
@@ -207,7 +198,6 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
     }
 
     const data = await res.json();
-    console.log('[Community] Favorite toggled:', data);
 
     // Save favorite status locally
     const videoIdStr = String(videoId);
@@ -294,8 +284,6 @@ export interface WatchHistoryResponse {
 
 export async function getWatchHistory(page: number = 1, pageSize: number = 100): Promise<WatchHistoryResponse> {
   try {
-    console.log('[Community] Fetching watch history');
-
     const res = await communityFetch(`/api/v1/watch-history?page=${page}&page_size=${pageSize}`, {
       method: 'GET',
       headers: {
@@ -309,7 +297,6 @@ export async function getWatchHistory(page: number = 1, pageSize: number = 100):
     }
 
     const data = await res.json();
-    console.log('[Community] Watch history:', data?.items?.length || 0, 'items');
     return data;
   } catch (err: any) {
     console.warn('[Community] Error fetching watch history:', err?.message);
