@@ -216,7 +216,7 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
 
 /**
  * Record a video watch
- 
+ */
 export interface WatchRequest {
   video_id: string;
 }
@@ -235,7 +235,7 @@ export async function recordVideoWatch(videoId: string): Promise<WatchResponse> 
 
     console.log('[Community] Record watch:', payload);
 
-    const res = await communityFetch('/api/v1/watch', {
+    const res = await communityFetch('/api/v1/watches', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -262,7 +262,6 @@ export async function recordVideoWatch(videoId: string): Promise<WatchResponse> 
     throw new Error(err?.message || 'Kon watch niet registreren');
   }
 }
-  */
 
 /**
  * Get user watch history
@@ -284,7 +283,9 @@ export interface WatchHistoryResponse {
 
 export async function getWatchHistory(page: number = 1, pageSize: number = 100): Promise<WatchHistoryResponse> {
   try {
-    const res = await communityFetch(`/api/v1/watch-history?page=${page}&page_size=${pageSize}`, {
+    console.log('[Community] Fetching watch history');
+
+    const res = await communityFetch(`/api/v1/watches?page=${page}&page_size=${pageSize}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
