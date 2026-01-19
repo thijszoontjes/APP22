@@ -1,7 +1,6 @@
 import SettingIconSvg from '@/assets/images/setting-icon.svg';
 import AppHeader from '@/components/app-header';
 import { ensureValidSession, getCurrentUserProfile, getMyBadges, getProfilePhotoUrl, type UserBadge, type UserModel } from '@/hooks/useAuthApi';
-import { getUserLikedVideos } from '@/hooks/useCommunityApi';
 import { getMyVideos, getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -170,30 +169,14 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // Load user's liked videos from API
-  const loadLikedVideos = useCallback(async () => {
-    setLikedVideosLoading(true);
-    try {
-      console.log('[Profile] Loading liked videos from API...');
-      const data = await getUserLikedVideos(1, 100);
-      const videosList = data.items || data.data || [];
-      setLikedVideos(videosList);
-      console.log('[Profile] Loaded', videosList.length, 'liked videos from API');
-    } catch (err: any) {
-      console.error('[Profile] Failed to load liked videos:', err);
-      setLikedVideos([]);
-    } finally {
-      setLikedVideosLoading(false);
-    }
-  }, []);
+
 
   // Reload videos when screen comes into focus (e.g., after upload)
   useFocusEffect(
     useCallback(() => {
       console.log('[Profile] Screen focused, loading videos...');
       loadVideos();
-      loadLikedVideos();
-    }, [loadVideos, loadLikedVideos])
+    }, [loadVideos])
   );
 
   const totalVideos = apiVideos.length;
@@ -272,7 +255,7 @@ export default function ProfilePage() {
     if (likedVideos.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.tabContentText}>Nog geen video&apos;s geliked</Text>
+          <Text style={styles.tabContentText}>Nog geen gelikte video's</Text>
         </View>
       );
     }

@@ -4,7 +4,7 @@ import HeartTrueIconSvg from '@/assets/images/heart-true-icon.svg';
 import LikedIconSvg from '@/assets/images/liked-icon.svg';
 import NonLikedIconSvg from '@/assets/images/non-liked-icon.svg';
 import { getUserById } from '@/hooks/useAuthApi';
-import { getVideoStats, recordVideoWatch, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
+import { getVideoStats, toggleVideoFavorite, toggleVideoLike } from '@/hooks/useCommunityApi';
 import { getPlayableVideoUrl, type FeedItem } from '@/hooks/useVideoApi';
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -115,12 +115,6 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
       try {
         player.muted = false;
         player.play();
-        
-        // Record watch event when video starts playing
-        recordVideoWatch(String(item.id)).catch((err) => {
-          console.log('[VideoFeedItem] Failed to record watch:', err);
-          // Don't block video playback if recording fails
-        });
       } catch (error) {
         console.log('[VideoFeedItem] Error playing video:', error);
       }
@@ -169,13 +163,13 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
       }),
     ]).start();
 
-    // Send to backend
+    // Send favorite to backend
     try {
-      await toggleVideoFavorite(item.id);
+      await toggleVideoFavorite(String(item.id));
       console.log('[VideoFeed] Favorite toggled for video:', item.id);
       
       // Fetch actual stats from backend to verify
-      const stats = await getVideoStats(item.id);
+      const stats = await getVideoStats(String(item.id));
       console.log('[VideoFeed] Updated stats after favorite:', stats);
     } catch (error: any) {
       console.error('[VideoFeed] Error toggling favorite:', error);
@@ -240,11 +234,11 @@ export default function VideoFeedItem({ item, isActive, cardHeight }: VideoFeedI
 
     // Send like to backend
     try {
-      await toggleVideoLike(item.id);
+      await toggleVideoLike(String(item.id));
       console.log('[VideoFeed] Like toggled for video:', item.id);
       
       // Fetch actual stats from backend to verify
-      const stats = await getVideoStats(item.id);
+      const stats = await getVideoStats(String(item.id));
       console.log('[VideoFeed] Updated stats:', stats);
       
       // Update with real data from backend

@@ -12,6 +12,16 @@ import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, Touchabl
 
 const ORANGE = '#FF8700';
 
+// Consistent spacing system
+const SPACING = {
+  xs: 4,    // Minimal gaps
+  sm: 8,    // Small gaps
+  md: 12,   // Medium gaps
+  lg: 16,   // Large gaps
+  xl: 20,   // Extra large gaps
+  xxl: 24,  // Double extra large gaps
+};
+
 const SECTOR_OPTIONS = [
   'Gezondheidszorg en Welzijn',
   'Handel en Dienstverlening',
@@ -358,7 +368,7 @@ export default function SettingsPage() {
 
           {/* Interesses */}
           <View style={styles.formGroup}>
-            <Text style={[styles.label, { textAlign: 'center' }]}>Interesses</Text>
+            <Text style={styles.label}>Interesses</Text>
             <View style={styles.interessesContainer}>
               {SECTOR_OPTIONS.map((interesse, index) => (
                 <TouchableOpacity
@@ -549,8 +559,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xxl,
   },
   profileSection: {
     alignItems: 'center',
@@ -569,8 +579,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   editProfileButton: {
-    paddingHorizontal: 0,
-    paddingVertical: 8,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -581,7 +591,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dataSection: {
-    marginBottom: 32,
+    marginBottom: SPACING.xxl,
   },
   sectionTitle: {
     fontSize: 18,
@@ -596,23 +606,23 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     width: '100%',
     alignSelf: 'stretch',
-    marginBottom: 24,
+    marginBottom: SPACING.xxl,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: SPACING.xl,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1A2233',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   textInput: {
     borderWidth: 1,
     borderColor: ORANGE,
     borderRadius: 25,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     fontSize: 15,
     color: '#1A2233',
     backgroundColor: '#FAFAFA',
@@ -628,10 +638,10 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: ORANGE,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     alignItems: 'center',
-    marginTop: 20,
+    marginBottom: SPACING.xxl,
     alignSelf: 'center',
   },
   saveButtonText: {
@@ -646,8 +656,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: ORANGE,
     borderRadius: 25,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     backgroundColor: '#FAFAFA',
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -698,8 +708,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   modalOption: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
@@ -723,8 +733,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D0D0D0',
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     backgroundColor: '#F5F5F5',
   },
   interesseBoxActive: {
@@ -740,15 +750,15 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   switchesSection: {
-    marginVertical: 24,
-    gap: 12,
+    marginVertical: SPACING.xxl,
+    gap: SPACING.md,
   },
   switchItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
     backgroundColor: '#F5F5F5',
     borderRadius: 15,
   },
@@ -761,7 +771,7 @@ const styles = StyleSheet.create({
   switchLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.md,
     flex: 1,
   },
   switchIcon: {
@@ -773,16 +783,16 @@ const styles = StyleSheet.create({
   dividerLine: {
     height: 1,
     backgroundColor: '#FFB347',
-    marginVertical: 24,
+    marginBottom: SPACING.xxl,
     width: '100%',
   },
   onboardingButton: {
     backgroundColor: ORANGE,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.xxl,
     alignSelf: 'center',
   },
   onboardingButtonText: {
@@ -793,10 +803,10 @@ const styles = StyleSheet.create({
   logoutButton: {
     backgroundColor: '#e6222fff',
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: SPACING.xl,
     alignSelf: 'center',
   },
   logoutButtonText: {
@@ -805,8 +815,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deleteAccountLinkContainer: {
-    paddingVertical: 8,
-    marginBottom: 20,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.xl,
     alignSelf: 'center',
   },
   deleteAccountLink: {
