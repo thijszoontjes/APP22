@@ -33,7 +33,7 @@ export const getStoredToken = async (): Promise<string | null> => {
   }
 };
 
-export const saveAuthToken = async (token: string) => {
+export const saveAuthToken = async (token: string) => { // dit schrijft naar de SecureStore
   try {
     await SecureStore.setItemAsync(TOKEN_KEY, token);
   } catch {
@@ -41,7 +41,7 @@ export const saveAuthToken = async (token: string) => {
   }
 };
 
-export const saveAuthTokens = async (accessToken: string, refreshToken: string) => {
+export const saveAuthTokens = async (accessToken: string, refreshToken: string) => { // access en refresh token opslaan
   try {
     await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
     await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
@@ -50,7 +50,7 @@ export const saveAuthTokens = async (accessToken: string, refreshToken: string) 
   }
 };
 
-export const getAuthTokens = async (): Promise<{ accessToken: string | null; refreshToken: string | null }> => {
+export const getAuthTokens = async (): Promise<{ accessToken: string | null; refreshToken: string | null }> => { // access en refresh token ophalen                                           
   try {
     const [accessToken, refreshToken] = await Promise.all([
       SecureStore.getItemAsync(TOKEN_KEY),
