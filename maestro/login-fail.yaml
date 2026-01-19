@@ -1,0 +1,27 @@
+appId: com.anonymous.APP22
+---
+# Test: Failed Login Flow with Invalid Credentials
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Inloggen"
+    timeout: 30000
+
+# Enter invalid credentials
+- tapOn: "E-mail"
+- inputText: "wrong@example.com"
+- tapOn: "Wachtwoord"
+- inputText: "wrongpassword"
+
+# Submit login
+- tapOn: "Inloggen"
+
+# Wait for error message
+- extendedWaitUntil:
+    visible: "Inloggen mislukt"
+    timeout: 10000
+
+# Verify still on login screen
+- assertVisible: "Inloggen"
+- assertVisible: "E-mail"
+- assertVisible: "Wachtwoord"

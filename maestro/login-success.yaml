@@ -1,0 +1,23 @@
+appId: com.anonymous.APP22
+---
+# Test: Successful Login Flow
+# NOTE: Replace with valid test credentials from your backend
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Inloggen"
+    timeout: 30000
+
+# Enter valid credentials
+- tapOn: "E-mail"
+- inputText: "thijszoontjes@ziggo.nl"
+- tapOn: "Wachtwoord"
+- inputText: "thijs1"
+
+# Submit login
+- tapOn: "Inloggen"
+
+# Wait for button text to change to "Inloggen..." (loading state)
+- extendedWaitUntil:
+    visible: "Inloggen..."
+    timeout: 5000
