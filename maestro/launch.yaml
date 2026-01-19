@@ -26,7 +26,6 @@ appId: com.anonymous.APP22
 
 # Test 5: Login Button Is Interactive
 - tapOn: "Inloggen"
-
 # SUCCESS: All UI interactions work correctly
-# The login API call requires backend connectivity which may not be 
+# The login API call requires backend connectivity which may not be
 # available in all testing environments (release builds, CI/CD, etc.)
