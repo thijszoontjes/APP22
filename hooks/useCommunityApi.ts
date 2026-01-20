@@ -125,7 +125,6 @@ export async function toggleVideoLike(videoId: string): Promise<LikeResponse> {
     
     return data;
   } catch (err: any) {
-    console.error('[Community] Toggle like error:', err);
     throw new Error(err?.message || 'Kon like niet toevoegen');
   }
 }
@@ -193,7 +192,6 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
         const error = JSON.parse(text);
         errorMsg = error.message || error.error || errorMsg;
       } catch {}
-      console.error('[Community] Favorite toggle error:', errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -209,7 +207,6 @@ export async function toggleVideoFavorite(videoId: string): Promise<FavoriteResp
 
     return data;
   } catch (err: any) {
-    console.error('[Community] Toggle favorite error:', err);
     throw new Error(err?.message || 'Kon favorite niet toevoegen');
   }
 }
@@ -258,7 +255,6 @@ export async function recordVideoWatch(videoId: string): Promise<WatchResponse> 
     console.log('[Community] Watch recorded:', data);
     return data;
   } catch (err: any) {
-    console.error('[Community] Record watch error:', err);
     throw new Error(err?.message || 'Kon watch niet registreren');
   }
 }
